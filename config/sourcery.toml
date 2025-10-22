@@ -1,0 +1,11 @@
+local_storage = '~/.local/share/sourcery'
+
+[install]
+user_path = '~/.local/bin'
+system_path = '/usr/local/bin'
+
+[build]
+default_environment = "container"
+
+[repositories]
+main = "http://github.com/mattslaney/sourcery-repository.git"

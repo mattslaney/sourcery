@@ -3,8 +3,8 @@ A package manager for maintaining system packages from source
 
 # Usage
 ```shell
-scry --update
-scry --clean
+scry --update # Update the package repositories
+scry --clean # Clean out old sources and outputs
 
 # Search for a package/collection fuzzy or exact
 scry search neovim
@@ -63,7 +63,6 @@ system_path = '/usr/local/bin'
 
 [build]
 default_environment = "container"
-default_container = "ubuntu:latest"
 
 [repositories]
 main = "http://github.com/mattslaney/sourcery-repository.git"

@@ -6,7 +6,6 @@ use crate::utilities::{
     load_package, BuildEnvironment, ContainerRuntime, SourceryImageBuilder, GitRepo,
     get_build_volume_mounts, format_env_for_container,
 };
-use crate::{green, red};
 use std::fs;
 
 #[allow(clippy::too_many_arguments)]
@@ -42,7 +41,7 @@ pub fn handle_build(
     } else if local {
         false
     } else if chroot {
-        messages::msg(red!("Chroot builds are not yet implemented"));
+        messages::failure("Chroot builds are not yet implemented");
         return;
     } else {
         // Use default from config
@@ -63,7 +62,7 @@ pub fn handle_build(
     let package_def = match load_package_definition(config, package, &system_info.distro_id, verbose) {
         Ok(pkg) => pkg,
         Err(e) => {
-            messages::msg(red!("Failed to load package: {}", e));
+            messages::failure(format!("Failed to load package: {}", e));
             return;
         }
     };
@@ -76,7 +75,7 @@ pub fn handle_build(
     let build_stage = match &package_def.build {
         Some(stage) => stage,
         None => {
-            messages::msg(red!("Package '{}' does not have a build stage defined", package));
+            messages::failure(format!("Package '{}' does not have a build stage defined", package));
             return;
         }
     };
@@ -94,7 +93,7 @@ pub fn handle_build(
     });
 
     if package_def.repo.is_empty() {
-        messages::msg(red!("Package '{}' does not have a repository URL defined", package));
+        messages::failure(format!("Package '{}' does not have a repository URL defined", package));
         return;
     }
 
@@ -103,7 +102,7 @@ pub fn handle_build(
     let git_repo = match setup_source_repository(repo_url, &source_dir, branch_to_use.as_deref(), tag.as_deref(), verbose) {
         Ok(repo) => repo,
         Err(e) => {
-            messages::msg(red!("Failed to setup source repository: {}", e));
+            messages::failure(format!("Failed to setup source repository: {}", e));
             return;
         }
     };
@@ -112,7 +111,7 @@ pub fn handle_build(
     let commit_hash = match git_repo.get_short_commit_hash() {
         Ok(hash) => hash,
         Err(e) => {
-            messages::msg(red!("Failed to get commit hash: {}", e));
+            messages::failure(format!("Failed to get commit hash: {}", e));
             return;
         }
     };
@@ -130,7 +129,7 @@ pub fn handle_build(
     );
 
     if let Err(e) = build_env.setup_directories() {
-        messages::msg(red!("Failed to setup build directories: {}", e));
+        messages::failure(format!("Failed to setup build directories: {}", e));
         return;
     }
 
@@ -146,12 +145,12 @@ pub fn handle_build(
     // Step 4: Execute build
     if use_container {
         if let Err(e) = build_with_container(&build_env, build_stage, system_info, verbose) {
-            messages::msg(red!("Build failed: {}", e));
+            messages::failure(format!("Build failed: {}", e));
             return;
         }
     } else {
         if let Err(e) = build_local(&build_env, build_stage, verbose) {
-            messages::msg(red!("Build failed: {}", e));
+            messages::failure(format!("Build failed: {}", e));
             return;
         }
     }
@@ -360,6 +359,11 @@ set -e
         logging::error(format!("Warning: Failed to write build log: {}", e));
     }
 
+    // Copy artifacts from source to artifacts directory
+    if let Err(e) = copy_artifacts(build_env, build_stage, verbose) {
+        return Err(format!("Failed to copy artifacts: {}", e));
+    }
+
     Ok(())
 }
 
@@ -425,6 +429,111 @@ fn build_local(
 
     if let Err(e) = fs::write(build_env.get_log_file_path(), log_content) {
         logging::error(format!("Warning: Failed to write build log: {}", e));
+    }
+
+    // Copy artifacts from source to artifacts directory
+    if let Err(e) = copy_artifacts(build_env, build_stage, verbose) {
+        return Err(format!("Failed to copy artifacts: {}", e));
+    }
+
+    Ok(())
+}
+
+/// Copy artifacts from source directory to artifacts directory
+fn copy_artifacts(
+    build_env: &BuildEnvironment,
+    build_stage: &crate::utilities::PackageStage,
+    verbose: bool,
+) -> Result<(), String> {
+    // Check if there are artifacts to copy
+    let artifacts = match &build_stage.artifacts {
+        Some(artifacts) if !artifacts.is_empty() => artifacts,
+        _ => {
+            if verbose {
+                logging::debug("No artifacts specified to copy");
+            }
+            return Ok(());
+        }
+    };
+
+    messages::msg(format!("Copying {} artifact(s)...", artifacts.len()));
+
+    for artifact_path in artifacts {
+        let source_path = build_env.source_dir.join(artifact_path);
+        
+        if !source_path.exists() {
+            return Err(format!(
+                "Artifact '{}' does not exist at {}",
+                artifact_path,
+                source_path.display()
+            ));
+        }
+
+        // Get the filename from the artifact path
+        let file_name = source_path
+            .file_name()
+            .ok_or_else(|| format!("Invalid artifact path: {}", artifact_path))?;
+        
+        let dest_path = build_env.artifacts_dir.join(file_name);
+
+        if verbose {
+            logging::debug(format!(
+                "Copying {} -> {}",
+                source_path.display(),
+                dest_path.display()
+            ));
+        }
+
+        // Copy the file
+        if source_path.is_file() {
+            fs::copy(&source_path, &dest_path).map_err(|e| {
+                format!(
+                    "Failed to copy artifact '{}': {}",
+                    artifact_path, e
+                )
+            })?;
+        } else if source_path.is_dir() {
+            // For directories, use a recursive copy
+            copy_dir_recursive(&source_path, &dest_path)?;
+        } else {
+            return Err(format!(
+                "Artifact '{}' is neither a file nor a directory",
+                artifact_path
+            ));
+        }
+
+        messages::msg(format!("  ✓ Copied {}", file_name.to_string_lossy()));
+    }
+
+    Ok(())
+}
+
+/// Recursively copy a directory
+fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<(), String> {
+    fs::create_dir_all(dst)
+        .map_err(|e| format!("Failed to create directory '{}': {}", dst.display(), e))?;
+
+    for entry in fs::read_dir(src)
+        .map_err(|e| format!("Failed to read directory '{}': {}", src.display(), e))?
+    {
+        let entry = entry
+            .map_err(|e| format!("Failed to read directory entry: {}", e))?;
+        let path = entry.path();
+        let file_name = entry.file_name();
+        let dest_path = dst.join(&file_name);
+
+        if path.is_dir() {
+            copy_dir_recursive(&path, &dest_path)?;
+        } else {
+            fs::copy(&path, &dest_path).map_err(|e| {
+                format!(
+                    "Failed to copy file '{}' to '{}': {}",
+                    path.display(),
+                    dest_path.display(),
+                    e
+                )
+            })?;
+        }
     }
 
     Ok(())

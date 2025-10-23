@@ -1,6 +1,23 @@
 # Sourcery
 A package manager for maintaining system packages from source.
 
+## Development
+
+This project includes a comprehensive Makefile for common development tasks:
+
+```shell
+make help           # Show all available commands
+make build          # Build the project
+make test           # Run all tests
+make coverage       # Run tests with coverage
+make fmt            # Format code
+make clippy         # Run linting
+make dev            # Format and test (quick dev workflow)
+make install        # Install to ~/.local/bin
+```
+
+See `make help` for the complete list of available commands.
+
 # Usage
 ```shell
 scry --update # Update the package repositories

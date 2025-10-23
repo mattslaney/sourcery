@@ -10,8 +10,10 @@ pub fn handle_purge(
     noconfirm: bool,
 ) {
     println!("Purging package: {}", package);
-    println!("  Confirm: {}, Verbose: {}, NoConfirm: {}", confirm, verbose, noconfirm);
-    
+    println!(
+        "  Confirm: {}, Verbose: {}, NoConfirm: {}",
+        confirm, verbose, noconfirm
+    );
+
     // TODO: Implement purge logic
 }
-

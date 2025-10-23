@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::Path;
 use std::io;
+use std::path::Path;
 
 /// Represents a stage in the package lifecycle (build, install, update, uninstall, purge)
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -9,24 +9,24 @@ pub struct PackageStage {
     /// Dependencies required for this stage (installed via system package manager)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dependencies: Option<Vec<String>>,
-    
+
     /// Command to execute for this stage
     #[serde(skip_serializing_if = "Option::is_none")]
     pub command: Option<String>,
-    
+
     /// Artifacts produced by this stage (typically for build stage)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub artifacts: Option<Vec<String>>,
-    
+
     /// Prerequisites stages that must be executed before this stage
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prerequisites: Option<Vec<String>>,
-    
+
     /// Whether this stage requires elevated privileges
     /// Note: Handles both "privileged" and "priviledged" (typo in some files)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub privileged: Option<bool>,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub priviledged: Option<bool>,
 }
@@ -37,7 +37,7 @@ impl PackageStage {
     pub fn is_privileged(&self) -> bool {
         self.privileged.unwrap_or(false) || self.priviledged.unwrap_or(false)
     }
-    
+
     /// Merge another stage into this one, with the other stage taking precedence
     pub fn merge(&mut self, other: &PackageStage) {
         if other.dependencies.is_some() {
@@ -67,44 +67,44 @@ pub struct Package {
     /// Package name
     #[serde(default)]
     pub name: String,
-    
+
     /// Package description
     #[serde(default)]
     pub desc: String,
-    
+
     /// Repository URLs for source code
     #[serde(default)]
     pub repo: Vec<String>,
-    
+
     /// Default branch to use
     #[serde(default)]
     pub branch: String,
-    
+
     /// Package type (e.g., "editor", "tool")
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "type")]
     pub package_type: Option<String>,
-    
+
     /// Categories this package belongs to
     #[serde(skip_serializing_if = "Option::is_none")]
     pub categories: Option<Vec<String>>,
-    
+
     /// Build stage configuration
     #[serde(skip_serializing_if = "Option::is_none")]
     pub build: Option<PackageStage>,
-    
+
     /// Install stage configuration
     #[serde(skip_serializing_if = "Option::is_none")]
     pub install: Option<PackageStage>,
-    
+
     /// Update stage configuration
     #[serde(skip_serializing_if = "Option::is_none")]
     pub update: Option<PackageStage>,
-    
+
     /// Uninstall stage configuration
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uninstall: Option<PackageStage>,
-    
+
     /// Purge stage configuration
     #[serde(skip_serializing_if = "Option::is_none")]
     pub purge: Option<PackageStage>,
@@ -128,14 +128,14 @@ impl Package {
         if !other.branch.is_empty() {
             self.branch = other.branch.clone();
         }
-        
+
         if other.package_type.is_some() {
             self.package_type = other.package_type.clone();
         }
         if other.categories.is_some() {
             self.categories = other.categories.clone();
         }
-        
+
         // Merge stages
         if let Some(ref other_build) = other.build {
             if let Some(ref mut build) = self.build {
@@ -144,7 +144,7 @@ impl Package {
                 self.build = Some(other_build.clone());
             }
         }
-        
+
         if let Some(ref other_install) = other.install {
             if let Some(ref mut install) = self.install {
                 install.merge(other_install);
@@ -152,7 +152,7 @@ impl Package {
                 self.install = Some(other_install.clone());
             }
         }
-        
+
         if let Some(ref other_update) = other.update {
             if let Some(ref mut update) = self.update {
                 update.merge(other_update);
@@ -160,7 +160,7 @@ impl Package {
                 self.update = Some(other_update.clone());
             }
         }
-        
+
         if let Some(ref other_uninstall) = other.uninstall {
             if let Some(ref mut uninstall) = self.uninstall {
                 uninstall.merge(other_uninstall);
@@ -168,7 +168,7 @@ impl Package {
                 self.uninstall = Some(other_uninstall.clone());
             }
         }
-        
+
         if let Some(ref other_purge) = other.purge {
             if let Some(ref mut purge) = self.purge {
                 purge.merge(other_purge);
@@ -180,15 +180,15 @@ impl Package {
 }
 
 /// Load a package from TOML files
-/// 
+///
 /// This function loads a base package file and optionally merges system-specific overrides.
 /// It looks for files in the pattern: `{package_name}.toml` and `{package_name}.{system}.toml`
-/// 
+///
 /// # Arguments
 /// * `package_dir` - Directory containing the package TOML files
 /// * `package_name` - Name of the package to load
 /// * `system_override` - Optional system-specific override (e.g., "ubuntu", "fedora")
-/// 
+///
 /// # Returns
 /// A merged Package with system-specific overrides applied if found
 pub fn load_package<P: AsRef<Path>>(
@@ -197,52 +197,72 @@ pub fn load_package<P: AsRef<Path>>(
     system_override: Option<&str>,
 ) -> Result<Package, Box<dyn std::error::Error>> {
     let package_dir = package_dir.as_ref();
-    
+
     // Load base package file
     let base_path = package_dir.join(format!("{}.toml", package_name));
-    let base_content = fs::read_to_string(&base_path)
-        .map_err(|e| format!("Failed to read base package file '{}': {}", base_path.display(), e))?;
-    
-    let mut package: Package = toml::from_str(&base_content)
-        .map_err(|e| format!("Failed to parse base package file '{}': {}", base_path.display(), e))?;
-    
+    let base_content = fs::read_to_string(&base_path).map_err(|e| {
+        format!(
+            "Failed to read base package file '{}': {}",
+            base_path.display(),
+            e
+        )
+    })?;
+
+    let mut package: Package = toml::from_str(&base_content).map_err(|e| {
+        format!(
+            "Failed to parse base package file '{}': {}",
+            base_path.display(),
+            e
+        )
+    })?;
+
     // Load and merge system-specific override if provided
     if let Some(system) = system_override {
         let override_path = package_dir.join(format!("{}.{}.toml", package_name, system));
-        
+
         if override_path.exists() {
-            let override_content = fs::read_to_string(&override_path)
-                .map_err(|e| format!("Failed to read override file '{}': {}", override_path.display(), e))?;
-            
-            let override_package: Package = toml::from_str(&override_content)
-                .map_err(|e| format!("Failed to parse override file '{}': {}", override_path.display(), e))?;
-            
+            let override_content = fs::read_to_string(&override_path).map_err(|e| {
+                format!(
+                    "Failed to read override file '{}': {}",
+                    override_path.display(),
+                    e
+                )
+            })?;
+
+            let override_package: Package = toml::from_str(&override_content).map_err(|e| {
+                format!(
+                    "Failed to parse override file '{}': {}",
+                    override_path.display(),
+                    e
+                )
+            })?;
+
             package.merge(&override_package);
         }
     }
-    
+
     Ok(package)
 }
 
 /// Find all available packages in a repository
-/// 
+///
 /// # Arguments
 /// * `packages_dir` - Directory containing package subdirectories
-/// 
+///
 /// # Returns
 /// A vector of package names (directory names)
 pub fn list_packages<P: AsRef<Path>>(packages_dir: P) -> Result<Vec<String>, io::Error> {
     let packages_dir = packages_dir.as_ref();
     let mut packages = Vec::new();
-    
+
     if !packages_dir.exists() {
         return Ok(packages);
     }
-    
+
     for entry in fs::read_dir(packages_dir)? {
         let entry = entry?;
         let path = entry.path();
-        
+
         if path.is_dir() {
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                 // Skip hidden directories
@@ -252,7 +272,7 @@ pub fn list_packages<P: AsRef<Path>>(packages_dir: P) -> Result<Vec<String>, io:
             }
         }
     }
-    
+
     packages.sort();
     Ok(packages)
 }
@@ -260,20 +280,20 @@ pub fn list_packages<P: AsRef<Path>>(packages_dir: P) -> Result<Vec<String>, io:
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_package_stage_is_privileged() {
         let mut stage = PackageStage::default();
         assert!(!stage.is_privileged());
-        
+
         stage.privileged = Some(true);
         assert!(stage.is_privileged());
-        
+
         stage.privileged = None;
         stage.priviledged = Some(true);
         assert!(stage.is_privileged());
     }
-    
+
     #[test]
     fn test_package_stage_merge() {
         let mut stage1 = PackageStage {
@@ -281,24 +301,24 @@ mod tests {
             command: Some("cmd1".to_string()),
             ..Default::default()
         };
-        
+
         let stage2 = PackageStage {
             dependencies: Some(vec!["dep2".to_string()]),
             artifacts: Some(vec!["artifact1".to_string()]),
             ..Default::default()
         };
-        
+
         stage1.merge(&stage2);
-        
+
         assert_eq!(stage1.dependencies, Some(vec!["dep2".to_string()]));
         assert_eq!(stage1.command, Some("cmd1".to_string()));
         assert_eq!(stage1.artifacts, Some(vec!["artifact1".to_string()]));
     }
-    
+
     #[test]
     fn test_package_stage_merge_all_fields() {
         let mut stage1 = PackageStage::default();
-        
+
         let stage2 = PackageStage {
             dependencies: Some(vec!["dep1".to_string()]),
             command: Some("make".to_string()),
@@ -307,9 +327,9 @@ mod tests {
             privileged: Some(true),
             priviledged: Some(false),
         };
-        
+
         stage1.merge(&stage2);
-        
+
         assert_eq!(stage1.dependencies, Some(vec!["dep1".to_string()]));
         assert_eq!(stage1.command, Some("make".to_string()));
         assert_eq!(stage1.artifacts, Some(vec!["bin/app".to_string()]));
@@ -317,7 +337,7 @@ mod tests {
         assert_eq!(stage1.privileged, Some(true));
         assert_eq!(stage1.priviledged, Some(false));
     }
-    
+
     #[test]
     fn test_package_merge() {
         let mut base_package = Package {
@@ -336,7 +356,7 @@ mod tests {
             uninstall: None,
             purge: None,
         };
-        
+
         let override_package = Package {
             name: String::new(),
             desc: String::new(),
@@ -356,64 +376,74 @@ mod tests {
             uninstall: None,
             purge: None,
         };
-        
+
         base_package.merge(&override_package);
-        
+
         // Name, desc, repo, branch should remain unchanged when empty in override
         assert_eq!(base_package.name, "test");
         assert_eq!(base_package.desc, "base description");
         assert_eq!(base_package.repo, vec!["https://github.com/test/test.git"]);
         assert_eq!(base_package.branch, "main");
-        
+
         // Type and categories should be overridden
         assert_eq!(base_package.package_type, Some("application".to_string()));
         assert_eq!(base_package.categories, Some(vec!["utility".to_string()]));
-        
+
         // Build should be merged
         assert!(base_package.build.is_some());
         let build = base_package.build.unwrap();
         assert_eq!(build.command, Some("make".to_string()));
         assert_eq!(build.dependencies, Some(vec!["gcc".to_string()]));
-        
+
         // Install should be added
         assert!(base_package.install.is_some());
     }
-    
+
     #[test]
     fn test_load_package_not_found() {
         use tempfile::TempDir;
-        
+
         let temp_dir = TempDir::new().unwrap();
         let result = load_package(temp_dir.path(), "nonexistent", None);
-        
+
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Failed to read base package file"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to read base package file")
+        );
     }
-    
+
     #[test]
     fn test_load_package_invalid_toml() {
-        use tempfile::TempDir;
         use std::io::Write;
-        
+        use tempfile::TempDir;
+
         let temp_dir = TempDir::new().unwrap();
         let package_path = temp_dir.path().join("test.toml");
-        
+
         let mut file = fs::File::create(&package_path).unwrap();
         file.write_all(b"invalid toml [[[").unwrap();
-        
+
         let result = load_package(temp_dir.path(), "test", None);
-        
+
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Failed to parse base package file"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to parse base package file")
+        );
     }
-    
+
     #[test]
     fn test_load_package_with_override() {
-        use tempfile::TempDir;
         use std::io::Write;
-        
+        use tempfile::TempDir;
+
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Create base package
         let base_toml = r#"
 name = "test-package"
@@ -427,7 +457,7 @@ command = "make"
         let base_path = temp_dir.path().join("test-package.toml");
         let mut file = fs::File::create(&base_path).unwrap();
         file.write_all(base_toml.as_bytes()).unwrap();
-        
+
         // Create system-specific override
         let override_toml = r#"
 [build]
@@ -436,34 +466,37 @@ dependencies = ["gcc", "make"]
         let override_path = temp_dir.path().join("test-package.ubuntu.toml");
         let mut file = fs::File::create(&override_path).unwrap();
         file.write_all(override_toml.as_bytes()).unwrap();
-        
+
         let result = load_package(temp_dir.path(), "test-package", Some("ubuntu"));
-        
+
         assert!(result.is_ok());
         let package = result.unwrap();
         assert_eq!(package.name, "test-package");
         assert!(package.build.is_some());
         let build = package.build.unwrap();
         assert_eq!(build.command, Some("make".to_string()));
-        assert_eq!(build.dependencies, Some(vec!["gcc".to_string(), "make".to_string()]));
+        assert_eq!(
+            build.dependencies,
+            Some(vec!["gcc".to_string(), "make".to_string()])
+        );
     }
-    
+
     #[test]
     fn test_list_packages() {
         use tempfile::TempDir;
-        
+
         let temp_dir = TempDir::new().unwrap();
         let packages_dir = temp_dir.path().join("packages");
         fs::create_dir(&packages_dir).unwrap();
-        
+
         // Create some package directories
         fs::create_dir(packages_dir.join("vim")).unwrap();
         fs::create_dir(packages_dir.join("neovim")).unwrap();
         fs::create_dir(packages_dir.join("tmux")).unwrap();
         fs::create_dir(packages_dir.join(".hidden")).unwrap(); // Should be ignored
-        
+
         let result = list_packages(&packages_dir);
-        
+
         assert!(result.is_ok());
         let packages = result.unwrap();
         assert_eq!(packages.len(), 3);
@@ -471,38 +504,37 @@ dependencies = ["gcc", "make"]
         assert!(packages.contains(&"neovim".to_string()));
         assert!(packages.contains(&"tmux".to_string()));
         assert!(!packages.contains(&".hidden".to_string()));
-        
+
         // Check that they're sorted
         assert_eq!(packages, vec!["neovim", "tmux", "vim"]);
     }
-    
+
     #[test]
     fn test_list_packages_empty_directory() {
         use tempfile::TempDir;
-        
+
         let temp_dir = TempDir::new().unwrap();
         let packages_dir = temp_dir.path().join("packages");
         fs::create_dir(&packages_dir).unwrap();
-        
+
         let result = list_packages(&packages_dir);
-        
+
         assert!(result.is_ok());
         let packages = result.unwrap();
         assert_eq!(packages.len(), 0);
     }
-    
+
     #[test]
     fn test_list_packages_nonexistent_directory() {
         use tempfile::TempDir;
-        
+
         let temp_dir = TempDir::new().unwrap();
         let packages_dir = temp_dir.path().join("nonexistent");
-        
+
         let result = list_packages(&packages_dir);
-        
+
         assert!(result.is_ok());
         let packages = result.unwrap();
         assert_eq!(packages.len(), 0);
     }
 }
-

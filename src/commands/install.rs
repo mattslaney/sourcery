@@ -15,14 +15,14 @@ pub fn handle_install(
     noconfirm: bool,
 ) {
     println!("Installing package: {}", package);
-    
+
     if let Some(branch) = branch {
         println!("  From branch: {}", branch);
     }
     if let Some(tag) = tag {
         println!("  From tag: {}", tag);
     }
-    
+
     let scope = if user {
         "user"
     } else if system {
@@ -30,10 +30,12 @@ pub fn handle_install(
     } else {
         "default"
     };
-    
+
     println!("  Scope: {}", scope);
-    println!("  Confirm: {}, Verbose: {}, NoConfirm: {}", confirm, verbose, noconfirm);
-    
+    println!(
+        "  Confirm: {}, Verbose: {}, NoConfirm: {}",
+        confirm, verbose, noconfirm
+    );
+
     // TODO: Implement install logic
 }
-

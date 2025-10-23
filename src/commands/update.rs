@@ -12,16 +12,18 @@ pub fn handle_update(
     noconfirm: bool,
 ) {
     println!("Updating package: {}", package);
-    
+
     if let Some(branch) = branch {
         println!("  From branch: {}", branch);
     }
     if let Some(tag) = tag {
         println!("  From tag: {}", tag);
     }
-    
-    println!("  Confirm: {}, Verbose: {}, NoConfirm: {}", confirm, verbose, noconfirm);
-    
+
+    println!(
+        "  Confirm: {}, Verbose: {}, NoConfirm: {}",
+        confirm, verbose, noconfirm
+    );
+
     // TODO: Implement update logic
 }
-

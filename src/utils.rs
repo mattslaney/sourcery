@@ -32,15 +32,15 @@ mod tests {
     fn test_expand_tilde_with_home() {
         // Save original HOME
         let original_home = env::var_os("HOME");
-        
+
         // Set a test HOME
         unsafe {
             env::set_var("HOME", "/test/home");
         }
-        
+
         let result = expand_tilde("~/Documents/file.txt");
         assert_eq!(result, PathBuf::from("/test/home/Documents/file.txt"));
-        
+
         // Restore original HOME
         if let Some(home) = original_home {
             unsafe {
@@ -68,7 +68,7 @@ mod tests {
             "/nonexistent/path2",
             "/nonexistent/path3",
         ];
-        
+
         let result = find_file_in_locations(&locations);
         assert!(result.is_none());
     }
@@ -78,13 +78,12 @@ mod tests {
         // This test uses actual files that should exist on most Linux systems
         let locations = vec![
             "/nonexistent/path",
-            "/etc/os-release",  // Should exist on modern Linux
-            "/etc/passwd",      // Also exists, but shouldn't be returned
+            "/etc/os-release", // Should exist on modern Linux
+            "/etc/passwd",     // Also exists, but shouldn't be returned
         ];
-        
+
         let result = find_file_in_locations(&locations);
         assert!(result.is_some());
         assert_eq!(result.unwrap(), PathBuf::from("/etc/os-release"));
     }
 }
-

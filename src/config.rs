@@ -45,8 +45,8 @@ impl Config {
             "/etc/sourcery/sourcery.toml",
         ];
 
-        let config_path = find_file_in_locations(&config_locations)
-            .ok_or("No config file found")?;
+        let config_path =
+            find_file_in_locations(&config_locations).ok_or("No config file found")?;
 
         let config = Self::load_from_path(&config_path)?;
         Ok((config, config_path))
@@ -85,7 +85,9 @@ impl Config {
 
     /// Get repositories sorted by priority (lowest priority number first)
     pub fn repositories_by_priority(&self) -> Vec<(String, RepositoryInfo)> {
-        let mut repos: Vec<_> = self.repositories.iter()
+        let mut repos: Vec<_> = self
+            .repositories
+            .iter()
             .map(|(name, info)| (name.clone(), info.clone()))
             .collect();
         repos.sort_by_key(|(_, info)| info.priority);
@@ -136,7 +138,10 @@ priority = 10
         assert_eq!(config.install.user_path, "~/.local/bin");
         assert_eq!(config.install.system_path, "/usr/local/bin");
         assert_eq!(config.build.default_environment, "container");
-        assert_eq!(config.repositories.get("main").unwrap().url, "http://github.com/test/repo.git");
+        assert_eq!(
+            config.repositories.get("main").unwrap().url,
+            "http://github.com/test/repo.git"
+        );
         assert_eq!(config.repositories.get("main").unwrap().branch, "main");
     }
 
@@ -238,20 +243,23 @@ priority = 15
 
         // Verify we have 3 repositories
         assert_eq!(config.repositories.len(), 3);
-        
+
         // Verify main repository
         assert!(config.repositories.contains_key("main"));
         assert_eq!(config.repositories.get("main").unwrap().branch, "main");
         assert_eq!(config.repositories.get("main").unwrap().priority, 10);
-        
+
         // Verify wip repository
         assert!(config.repositories.contains_key("wip"));
         assert_eq!(config.repositories.get("wip").unwrap().branch, "wip");
         assert_eq!(config.repositories.get("wip").unwrap().priority, 20);
-        
+
         // Verify dev repository
         assert!(config.repositories.contains_key("dev"));
-        assert_eq!(config.repositories.get("dev").unwrap().url, "http://github.com/test/dev-repo.git");
+        assert_eq!(
+            config.repositories.get("dev").unwrap().url,
+            "http://github.com/test/dev-repo.git"
+        );
         assert_eq!(config.repositories.get("dev").unwrap().branch, "develop");
         assert_eq!(config.repositories.get("dev").unwrap().priority, 15);
     }
@@ -340,9 +348,8 @@ branch = "main"
         .unwrap();
 
         let config = Config::load_from_path(&config_path).unwrap();
-        
+
         // Priority should default to 100
         assert_eq!(config.repositories.get("main").unwrap().priority, 100);
     }
 }
-

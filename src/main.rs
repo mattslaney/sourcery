@@ -5,8 +5,8 @@ mod cli;
 mod commands;
 mod config;
 mod system;
-mod utils;
 mod utilities;
+mod utils;
 
 use clap::Parser;
 use cli::{Cli, Commands};
@@ -60,25 +60,119 @@ fn main() {
 
     // Handle subcommands
     match cli.command {
-        Some(Commands::List { installed, upgradable }) => {
+        Some(Commands::List {
+            installed,
+            upgradable,
+        }) => {
             commands::handle_list(&config, &system_info, installed, upgradable);
         }
-        Some(Commands::Search { query, fuzzy, exact, package, collection, info }) => {
-            commands::handle_search(&config, &system_info, &query, fuzzy, exact, package, collection, info);
+        Some(Commands::Search {
+            query,
+            fuzzy,
+            exact,
+            package,
+            collection,
+            info,
+        }) => {
+            commands::handle_search(
+                &config,
+                &system_info,
+                &query,
+                fuzzy,
+                exact,
+                package,
+                collection,
+                info,
+            );
         }
-        Some(Commands::Build { package, branch, tag, container, local, chroot, confirm, verbose, noconfirm }) => {
-            commands::handle_build(&config, &system_info, &package, branch, tag, container, local, chroot, confirm, verbose, noconfirm);
+        Some(Commands::Build {
+            package,
+            branch,
+            tag,
+            container,
+            local,
+            chroot,
+            confirm,
+            verbose,
+            noconfirm,
+        }) => {
+            commands::handle_build(
+                &config,
+                &system_info,
+                &package,
+                branch,
+                tag,
+                container,
+                local,
+                chroot,
+                confirm,
+                verbose,
+                noconfirm,
+            );
         }
-        Some(Commands::Install { package, branch, tag, user, system, confirm, verbose, noconfirm }) => {
-            commands::handle_install(&config, &system_info, &package, branch, tag, user, system, confirm, verbose, noconfirm);
+        Some(Commands::Install {
+            package,
+            branch,
+            tag,
+            user,
+            system,
+            confirm,
+            verbose,
+            noconfirm,
+        }) => {
+            commands::handle_install(
+                &config,
+                &system_info,
+                &package,
+                branch,
+                tag,
+                user,
+                system,
+                confirm,
+                verbose,
+                noconfirm,
+            );
         }
-        Some(Commands::Update { package, branch, tag, confirm, verbose, noconfirm }) => {
-            commands::handle_update(&config, &system_info, &package, branch, tag, confirm, verbose, noconfirm);
+        Some(Commands::Update {
+            package,
+            branch,
+            tag,
+            confirm,
+            verbose,
+            noconfirm,
+        }) => {
+            commands::handle_update(
+                &config,
+                &system_info,
+                &package,
+                branch,
+                tag,
+                confirm,
+                verbose,
+                noconfirm,
+            );
         }
-        Some(Commands::Uninstall { package, confirm, verbose, noconfirm }) => {
-            commands::handle_uninstall(&config, &system_info, &package, confirm, verbose, noconfirm);
+        Some(Commands::Uninstall {
+            package,
+            confirm,
+            verbose,
+            noconfirm,
+        }) => {
+            commands::handle_uninstall(
+                &config,
+                &system_info,
+                &package,
+                confirm,
+                verbose,
+                noconfirm,
+            );
         }
-        Some(Commands::Purge { package, confirm, verbose, noconfirm }) => {
+        Some(Commands::Purge {
+            package,
+            confirm,
+            verbose,
+            noconfirm,
+        }) => {
             commands::handle_purge(&config, &system_info, &package, confirm, verbose, noconfirm);
         }
         None => {

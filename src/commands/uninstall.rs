@@ -10,8 +10,10 @@ pub fn handle_uninstall(
     noconfirm: bool,
 ) {
     println!("Uninstalling package: {}", package);
-    println!("  Confirm: {}, Verbose: {}, NoConfirm: {}", confirm, verbose, noconfirm);
-    
+    println!(
+        "  Confirm: {}, Verbose: {}, NoConfirm: {}",
+        confirm, verbose, noconfirm
+    );
+
     // TODO: Implement uninstall logic
 }
-

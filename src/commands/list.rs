@@ -13,4 +13,3 @@ pub fn handle_list(_config: &Config, _system_info: &SystemInfo, installed: bool,
         std::process::exit(1);
     }
 }
-

@@ -17,12 +17,7 @@ pub fn handle_update_repo(config: &Config, _system_info: &SystemInfo) {
     }
     
     // Process each repository in the config
-    // Currently we only have 'main', but this structure allows for future expansion
-    let repositories = vec![
-        ("main", &config.repositories.main),
-    ];
-    
-    for (name, repo_info) in repositories {
+    for (name, repo_info) in &config.repositories {
         println!("\nProcessing repository '{}'...", name);
         println!("  URL: {}", repo_info.url);
         println!("  Branch: {}", repo_info.branch);

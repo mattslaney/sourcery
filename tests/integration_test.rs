@@ -15,10 +15,28 @@ fn test_health_command() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     
-    // Check for expected output
+    // Check for expected system information output
     assert!(stdout.contains("System Health Check"));
     assert!(stdout.contains("Architecture:"));
     assert!(stdout.contains("Distribution:"));
+    
+    // Check for dependency checks section
+    assert!(stdout.contains("Dependency Checks:"));
+    
+    // Check that git check is performed (should show either ✓ or ✗)
+    assert!(stdout.contains("Git is installed") || stdout.contains("Git is not installed"));
+    
+    // Check that container runtime check is performed
+    assert!(
+        stdout.contains("Container runtime found") || 
+        stdout.contains("No container runtime found")
+    );
+    
+    // Check that repository checks are performed
+    assert!(
+        stdout.contains("Repository") && 
+        (stdout.contains("exists") || stdout.contains("not found"))
+    );
 }
 
 #[test]

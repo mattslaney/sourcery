@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -9,7 +10,7 @@ pub struct Config {
     pub local_storage: String,
     pub install: InstallConfig,
     pub build: BuildConfig,
-    pub repositories: RepositoriesConfig,
+    pub repositories: HashMap<String, RepositoryInfo>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -21,11 +22,6 @@ pub struct InstallConfig {
 #[derive(Debug, Deserialize)]
 pub struct BuildConfig {
     pub default_environment: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct RepositoriesConfig {
-    pub main: RepositoryInfo,
 }
 
 #[derive(Debug, Deserialize)]
@@ -124,8 +120,8 @@ branch = "main"
         assert_eq!(config.install.user_path, "~/.local/bin");
         assert_eq!(config.install.system_path, "/usr/local/bin");
         assert_eq!(config.build.default_environment, "container");
-        assert_eq!(config.repositories.main.url, "http://github.com/test/repo.git");
-        assert_eq!(config.repositories.main.branch, "main");
+        assert_eq!(config.repositories.get("main").unwrap().url, "http://github.com/test/repo.git");
+        assert_eq!(config.repositories.get("main").unwrap().branch, "main");
     }
 
     #[test]
@@ -185,6 +181,68 @@ branch = "main"
 
         let path = config.system_install_path();
         assert_eq!(path, PathBuf::from("/usr/local/bin"));
+    }
+
+    #[test]
+    fn test_multiple_repositories() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("multi_repo_config.toml");
+        let mut file = fs::File::create(&config_path).unwrap();
+        writeln!(
+            file,
+            r#"
+local_storage = '~/.local/share/sourcery'
+
+[install]
+user_path = '~/.local/bin'
+system_path = '/usr/local/bin'
+
+[build]
+default_environment = "container"
+
+[repositories.main]
+url = "http://github.com/test/repo.git"
+branch = "main"
+
+[repositories.wip]
+url = "http://github.com/test/repo.git"
+branch = "wip"
+
+[repositories.dev]
+url = "http://github.com/test/dev-repo.git"
+branch = "develop"
+"#
+        )
+        .unwrap();
+
+        let config = Config::load_from_path(&config_path).unwrap();
+
+        // Verify we have 3 repositories
+        assert_eq!(config.repositories.len(), 3);
+        
+        // Verify main repository
+        assert!(config.repositories.contains_key("main"));
+        assert_eq!(config.repositories.get("main").unwrap().branch, "main");
+        
+        // Verify wip repository
+        assert!(config.repositories.contains_key("wip"));
+        assert_eq!(config.repositories.get("wip").unwrap().branch, "wip");
+        
+        // Verify dev repository
+        assert!(config.repositories.contains_key("dev"));
+        assert_eq!(config.repositories.get("dev").unwrap().url, "http://github.com/test/dev-repo.git");
+        assert_eq!(config.repositories.get("dev").unwrap().branch, "develop");
+    }
+
+    #[test]
+    fn test_single_repository() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = create_test_config(&temp_dir);
+        let config = Config::load_from_path(&config_path).unwrap();
+
+        // Verify we have 1 repository
+        assert_eq!(config.repositories.len(), 1);
+        assert!(config.repositories.contains_key("main"));
     }
 }
 

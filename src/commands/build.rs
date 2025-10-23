@@ -1,10 +1,11 @@
 use crate::config::Config;
+use crate::logging;
 use crate::system::SystemInfo;
 use crate::utilities::{
     load_package, BuildEnvironment, ContainerRuntime, SourceryImageBuilder, GitRepo,
     get_build_volume_mounts, format_env_for_container,
 };
-use crate::{msg, green, red};
+use crate::{green, red};
 use std::fs;
 
 #[allow(clippy::too_many_arguments)]
@@ -21,17 +22,17 @@ pub fn handle_build(
     verbose: bool,
     noconfirm: bool,
 ) {
-    msg!("Building package: {}", package);
-    msg!(
+    logging::msg(format!("Building package: {}", package));
+    logging::msg(format!(
         "  Target system: {} {} ({})",
         system_info.distro_name, system_info.distro_version_id, system_info.arch
-    );
+    ));
 
     if let Some(ref branch) = branch {
-        msg!("  From branch: {}", branch);
+        logging::msg(format!("  From branch: {}", branch));
     }
     if let Some(ref tag) = tag {
-        msg!("  From tag: {}", tag);
+        logging::msg(format!("  From tag: {}", tag));
     }
 
     // Determine build environment
@@ -40,7 +41,7 @@ pub fn handle_build(
     } else if local {
         false
     } else if chroot {
-        msg!("{}", red!("Chroot builds are not yet implemented"));
+        logging::msg(red!("Chroot builds are not yet implemented"));
         return;
     } else {
         // Use default from config
@@ -53,34 +54,34 @@ pub fn handle_build(
         "local"
     };
 
-    msg!("  Build environment: {}", environment);
+    logging::msg(format!("  Build environment: {}", environment));
 
     // Step 1: Load package definition
-    msg!("Loading package definition...");
+    logging::msg("Loading package definition...");
     
     let package_def = match load_package_definition(config, package, &system_info.distro_id, verbose) {
         Ok(pkg) => pkg,
         Err(e) => {
-            msg!("{}", red!("Failed to load package: {}", e));
+            logging::msg(red!("Failed to load package: {}", e));
             return;
         }
     };
 
     if verbose {
-        debug!("Package loaded: {} - {}", package_def.name, package_def.desc);
+        logging::debug(format!("Package loaded: {} - {}", package_def.name, package_def.desc));
     }
 
     // Check if package has build stage
     let build_stage = match &package_def.build {
         Some(stage) => stage,
         None => {
-            msg!("{}", red!("Package '{}' does not have a build stage defined", package));
+            logging::msg(red!("Package '{}' does not have a build stage defined", package));
             return;
         }
     };
 
     // Step 2: Clone/update source repository
-    msg!("Setting up source repository...");
+    logging::msg("Setting up source repository...");
     
     let source_dir = config.local_storage_path().join("source").join(package);
     let branch_to_use = branch.or_else(|| {
@@ -92,7 +93,7 @@ pub fn handle_build(
     });
 
     if package_def.repo.is_empty() {
-        msg!("{}", red!("Package '{}' does not have a repository URL defined", package));
+        logging::msg(red!("Package '{}' does not have a repository URL defined", package));
         return;
     }
 
@@ -101,7 +102,7 @@ pub fn handle_build(
     let git_repo = match setup_source_repository(repo_url, &source_dir, branch_to_use.as_deref(), tag.as_deref(), verbose) {
         Ok(repo) => repo,
         Err(e) => {
-            msg!("{}", red!("Failed to setup source repository: {}", e));
+            logging::msg(red!("Failed to setup source repository: {}", e));
             return;
         }
     };
@@ -110,12 +111,12 @@ pub fn handle_build(
     let commit_hash = match git_repo.get_short_commit_hash() {
         Ok(hash) => hash,
         Err(e) => {
-            msg!("{}", red!("Failed to get commit hash: {}", e));
+            logging::msg(red!("Failed to get commit hash: {}", e));
             return;
         }
     };
 
-    msg!("  Source ready at commit: {}", commit_hash);
+    logging::msg(format!("  Source ready at commit: {}", commit_hash));
 
     // Step 3: Setup build environment
     let install_prefix = config.system_install_path();
@@ -128,15 +129,15 @@ pub fn handle_build(
     );
 
     if let Err(e) = build_env.setup_directories() {
-        msg!("{}", red!("Failed to setup build directories: {}", e));
+        logging::msg(red!("Failed to setup build directories: {}", e));
         return;
     }
 
     // Check if artifacts already exist
     if build_env.artifacts_exist() && !noconfirm {
-        msg!("Artifacts already exist for commit {}", commit_hash);
+        logging::msg(format!("Artifacts already exist for commit {}", commit_hash));
         if !confirm {
-            msg!("Skipping build. Use --confirm to rebuild.");
+            logging::msg("Skipping build. Use --confirm to rebuild.");
             return;
         }
     }
@@ -144,18 +145,18 @@ pub fn handle_build(
     // Step 4: Execute build
     if use_container {
         if let Err(e) = build_with_container(&build_env, build_stage, system_info, verbose) {
-            msg!("{}", red!("Build failed: {}", e));
+            logging::msg(red!("Build failed: {}", e));
             return;
         }
     } else {
         if let Err(e) = build_local(&build_env, build_stage, verbose) {
-            msg!("{}", red!("Build failed: {}", e));
+            logging::msg(red!("Build failed: {}", e));
             return;
         }
     }
 
-    msg!("{}", green!("Build completed successfully!"));
-    msg!("Artifacts available at: {}", build_env.artifacts_dir.display());
+    logging::msg(green!("Build completed successfully!"));
+    logging::msg(format!("Artifacts available at: {}", build_env.artifacts_dir.display()));
 }
 
 /// Load package definition with system-specific overrides
@@ -175,7 +176,7 @@ fn load_package_definition(
         }
 
         if verbose {
-            debug!("Found package in repository: {}", repo_name);
+            logging::debug(format!("Found package in repository: {}", repo_name));
         }
 
         return load_package(&packages_dir, package_name, Some(distro_id))
@@ -195,14 +196,14 @@ fn setup_source_repository(
 ) -> Result<GitRepo, String> {
     let repo = if dest_path.exists() {
         if verbose {
-            debug!("Repository already exists, updating...");
+            logging::debug("Repository already exists, updating...");
         }
         let repo = GitRepo::new(dest_path);
         repo.fetch()?;
         repo
     } else {
         if verbose {
-            debug!("Cloning repository from {}...", repo_url);
+            logging::debug(format!("Cloning repository from {}...", repo_url));
         }
         GitRepo::clone(repo_url, dest_path, branch)?
     };
@@ -210,12 +211,12 @@ fn setup_source_repository(
     // Checkout specific tag or branch if requested
     if let Some(tag) = tag {
         if verbose {
-            debug!("Checking out tag: {}", tag);
+            logging::debug(format!("Checking out tag: {}", tag));
         }
         repo.checkout(tag)?;
     } else if let Some(branch) = branch {
         if verbose {
-            debug!("Checking out branch: {}", branch);
+            logging::debug(format!("Checking out branch: {}", branch));
         }
         repo.checkout(branch)?;
     }
@@ -230,13 +231,13 @@ fn build_with_container(
     system_info: &SystemInfo,
     verbose: bool,
 ) -> Result<(), String> {
-    msg!("Building in container environment...");
+    logging::msg("Building in container environment...");
 
     // Detect container runtime
     let runtime = ContainerRuntime::detect()
         .map_err(|e| format!("Container runtime not found: {}", e))?;
 
-    msg!("  Using container runtime: {}", runtime.command());
+    logging::msg(format!("  Using container runtime: {}", runtime.command()));
 
     // Build base image if needed
     let containerfiles_dir = std::path::PathBuf::from("/etc/sourcery/containers");
@@ -246,7 +247,7 @@ fn build_with_container(
         containerfiles_dir
     } else {
         if verbose {
-            debug!("Using local containers directory");
+            logging::debug("Using local containers directory");
         }
         std::path::PathBuf::from("containers")
     };
@@ -259,11 +260,11 @@ fn build_with_container(
         None
     };
 
-    msg!("  Building base image for {} {}...", system_info.distro_id, version.unwrap_or("latest"));
+    logging::msg(format!("  Building base image for {} {}...", system_info.distro_id, version.unwrap_or("latest")));
     
     let image_tag = image_builder.build_base_image(&system_info.distro_id, version)?;
 
-    msg!("  Using image: {}", image_tag);
+    logging::msg(format!("  Using image: {}", image_tag));
 
     // Prepare environment variables
     let env_vars = build_env.get_env_vars();
@@ -324,10 +325,10 @@ set -e
     );
 
     if verbose {
-        debug!("Build script:\n{}", build_script);
+        logging::debug(format!("Build script:\n{}", build_script));
     }
 
-    msg!("  Executing build command...");
+    logging::msg("  Executing build command...");
 
     // Run the build
     let output = runtime.run(&image_tag, &build_script, &volumes, Some(&env_vec))
@@ -341,7 +342,7 @@ set -e
     if verbose {
         let stdout = String::from_utf8_lossy(&output.stdout);
         if !stdout.is_empty() {
-            debug!("Build output:\n{}", stdout);
+            logging::debug(format!("Build output:\n{}", stdout));
         }
     }
 
@@ -355,7 +356,7 @@ set -e
     );
 
     if let Err(e) = fs::write(build_env.get_log_file_path(), log_content) {
-        error!("Warning: Failed to write build log: {}", e);
+        logging::error(format!("Warning: Failed to write build log: {}", e));
     }
 
     Ok(())
@@ -367,7 +368,7 @@ fn build_local(
     build_stage: &crate::utilities::PackageStage,
     verbose: bool,
 ) -> Result<(), String> {
-    msg!("Building locally...");
+    logging::msg("Building locally...");
 
     // Get build command
     let build_command = match &build_stage.command {
@@ -378,7 +379,7 @@ fn build_local(
     };
 
     if verbose {
-        debug!("Build command: {}", build_command);
+        logging::debug(format!("Build command: {}", build_command));
     }
 
     // Prepare environment
@@ -395,7 +396,7 @@ fn build_local(
         cmd.env(key, value);
     }
 
-    msg!("  Executing build command...");
+    logging::msg("  Executing build command...");
 
     let output = cmd.output()
         .map_err(|e| format!("Failed to execute build command: {}", e))?;
@@ -408,7 +409,7 @@ fn build_local(
     if verbose {
         let stdout = String::from_utf8_lossy(&output.stdout);
         if !stdout.is_empty() {
-            debug!("Build output:\n{}", stdout);
+            logging::debug(format!("Build output:\n{}", stdout));
         }
     }
 
@@ -422,7 +423,7 @@ fn build_local(
     );
 
     if let Err(e) = fs::write(build_env.get_log_file_path(), log_content) {
-        error!("Warning: Failed to write build log: {}", e);
+        logging::error(format!("Warning: Failed to write build log: {}", e));
     }
 
     Ok(())

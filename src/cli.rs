@@ -5,6 +5,10 @@ use clap::{Parser, Subcommand};
 #[command(version)]
 #[command(about = "A package manager for maintaining system packages from source", long_about = None)]
 pub struct Cli {
+    /// Set log level (trace, debug, info, warning, error)
+    #[arg(long)]
+    pub log_level: Option<String>,
+
     /// Update the package repositories
     #[arg(long)]
     pub update: bool,

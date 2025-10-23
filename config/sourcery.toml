@@ -1,3 +1,4 @@
+log_level = "trace"
 local_storage = '~/.local/share/sourcery'
 
 [install]

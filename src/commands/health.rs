@@ -1,38 +1,39 @@
 use crate::config::Config;
+use crate::logging;
 use crate::system::SystemInfo;
 use std::process::Command;
 
 pub fn handle_health(config: &Config, system_info: &SystemInfo) {
-    msg!("{}", style!("bold,cyan", "System Health Check"));
-    msg!("{}", style!("bold,cyan", "=================="));
-    msg!();
+    logging::msg(style!("bold,cyan", "System Health Check"));
+    logging::msg(style!("bold,cyan", "=================="));
+    logging::blank();
 
-    msg!("{}", style!("bold", "System Information:"));
-    msg!("  Architecture: {}", system_info.arch);
-    msg!(
+    logging::msg(style!("bold", "System Information:"));
+    logging::msg(format!("  Architecture: {}", system_info.arch));
+    logging::msg(format!(
         "  Distribution: {} ({})",
         system_info.distro_name,
         system_info.distro_id
-    );
-    msg!("  Version: {}", system_info.distro_version);
+    ));
+    logging::msg(format!("  Version: {}", system_info.distro_version));
     if !system_info.distro_version_id.is_empty() {
-        msg!("  Version ID: {}", system_info.distro_version_id);
+        logging::msg(format!("  Version ID: {}", system_info.distro_version_id));
     }
     if let Some(codename) = &system_info.distro_version_codename {
-        msg!("  Codename: {}", codename);
+        logging::msg(format!("  Codename: {}", codename));
     }
-    msg!();
+    logging::blank();
 
-    msg!("{}", style!("bold", "Dependency Checks:"));
+    logging::msg(style!("bold", "Dependency Checks:"));
 
     // Check for git
     if check_command_exists("git") {
-        msg!("  {} Git is installed", green!("✓"));
+        logging::msg(format!("  {} Git is installed", green!("✓")));
     } else {
-        msg!(
+        logging::msg(format!(
             "  {} Git is not installed - required for repository management",
             red!("✗")
-        );
+        ));
     }
 
     // Check for container runtime (podman or docker)
@@ -41,20 +42,20 @@ pub fn handle_health(config: &Config, system_info: &SystemInfo) {
 
     if has_podman || has_docker {
         if has_podman && has_docker {
-            msg!(
+            logging::msg(format!(
                 "  {} Container runtime found: podman and docker",
                 green!("✓")
-            );
+            ));
         } else if has_podman {
-            msg!("  {} Container runtime found: podman", green!("✓"));
+            logging::msg(format!("  {} Container runtime found: podman", green!("✓")));
         } else {
-            msg!("  {} Container runtime found: docker", green!("✓"));
+            logging::msg(format!("  {} Container runtime found: docker", green!("✓")));
         }
     } else {
-        msg!(
+        logging::msg(format!(
             "  {} No container runtime found - either podman or docker is required",
             red!("✗")
-        );
+        ));
     }
 
     // Check for each repository
@@ -62,27 +63,27 @@ pub fn handle_health(config: &Config, system_info: &SystemInfo) {
     for (name, repo_info) in &config.repositories {
         let repo_path = repositories_dir.join(name);
         if repo_path.exists() {
-            msg!(
+            logging::msg(format!(
                 "  {} Repository '{}' exists ({})",
                 green!("✓"),
                 name,
                 repo_info.branch
-            );
+            ));
         } else {
-            msg!(
+            logging::msg(format!(
                 "  {} Repository '{}' not found ({})",
                 orange!("⚠"),
                 name,
                 repo_info.branch
-            );
-            msg!(
+            ));
+            logging::msg(format!(
                 "    Run {} to clone repositories",
                 style!("bold", "sourcery --update")
-            );
+            ));
         }
     }
 
-    msg!();
+    logging::blank();
 }
 
 /// Check if a command exists in the system PATH

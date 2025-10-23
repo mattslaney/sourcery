@@ -7,10 +7,16 @@ use crate::utils::{expand_tilde, find_file_in_locations};
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
+    #[serde(default = "default_log_level")]
+    pub log_level: String,
     pub local_storage: String,
     pub install: InstallConfig,
     pub build: BuildConfig,
     pub repositories: HashMap<String, RepositoryInfo>,
+}
+
+fn default_log_level() -> String {
+    "info".to_string()
 }
 
 #[derive(Debug, Deserialize)]
@@ -108,6 +114,7 @@ mod tests {
         writeln!(
             file,
             r#"
+log_level = "info"
 local_storage = '~/.local/share/sourcery'
 
 [install]
@@ -134,6 +141,7 @@ priority = 10
 
         let config = Config::load_from_path(&config_path).unwrap();
 
+        assert_eq!(config.log_level, "info");
         assert_eq!(config.local_storage, "~/.local/share/sourcery");
         assert_eq!(config.install.user_path, "~/.local/bin");
         assert_eq!(config.install.system_path, "/usr/local/bin");
@@ -212,6 +220,7 @@ priority = 10
         writeln!(
             file,
             r#"
+log_level = "info"
 local_storage = '~/.local/share/sourcery'
 
 [install]
@@ -283,6 +292,7 @@ priority = 15
         writeln!(
             file,
             r#"
+log_level = "info"
 local_storage = '~/.local/share/sourcery'
 
 [install]
@@ -331,6 +341,7 @@ priority = 20
         writeln!(
             file,
             r#"
+log_level = "info"
 local_storage = '~/.local/share/sourcery'
 
 [install]
@@ -351,5 +362,35 @@ branch = "main"
 
         // Priority should default to 100
         assert_eq!(config.repositories.get("main").unwrap().priority, 100);
+    }
+
+    #[test]
+    fn test_default_log_level() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("no_log_level.toml");
+        let mut file = fs::File::create(&config_path).unwrap();
+        writeln!(
+            file,
+            r#"
+local_storage = '~/.local/share/sourcery'
+
+[install]
+user_path = '~/.local/bin'
+system_path = '/usr/local/bin'
+
+[build]
+default_environment = "container"
+
+[repositories.main]
+url = "http://github.com/test/repo.git"
+branch = "main"
+"#
+        )
+        .unwrap();
+
+        let config = Config::load_from_path(&config_path).unwrap();
+
+        // Log level should default to "info"
+        assert_eq!(config.log_level, "info");
     }
 }

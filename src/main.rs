@@ -4,6 +4,7 @@ mod macros;
 mod cli;
 mod commands;
 mod config;
+mod logging;
 mod system;
 mod utilities;
 mod utils;
@@ -37,6 +38,10 @@ fn main() {
             std::process::exit(1);
         }
     };
+
+    // Initialize logging with CLI override or config value
+    let log_level = cli.log_level.as_deref().unwrap_or(&config.log_level);
+    logging::init_log_level(log_level);
 
     if std::env::var("SOURCERY_DEBUG").is_ok() {
         eprintln!("Loaded config from: {}", config_path.display());

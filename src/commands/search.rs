@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::logging;
+use crate::messages;
 use crate::system::SystemInfo;
 use crate::utilities::{load_collection, load_package};
 use crate::{green, style};
@@ -32,13 +32,13 @@ pub fn handle_search(
         "package or collection"
     };
 
-    logging::msg(format!(
+    messages::msg(format!(
         "Searching for {} '{}' using {} search...",
         target,
         query,
         search_type
     ));
-    logging::blank();
+    messages::blank();
 
     // Get repositories sorted by priority
     let repos = config.repositories_by_priority();
@@ -76,10 +76,10 @@ pub fn handle_search(
 
     // Display results
     if results.is_empty() {
-        logging::msg("No results found.");
+        messages::msg("No results found.");
     } else {
-        logging::msg(format!("Found {} result(s):", results.len()));
-        logging::blank();
+        messages::msg(format!("Found {} result(s):", results.len()));
+        messages::blank();
 
         // Convert to SearchResult and sort by name
         let mut search_results: Vec<SearchResult> = results
@@ -150,7 +150,7 @@ fn display_search_result(result: &SearchResult) {
         output.push(']');
     }
 
-    logging::msg(output);
+    messages::msg(output);
 }
 
 fn display_info_result(
@@ -181,10 +181,10 @@ fn display_info_result(
             match load_package(&package_dir, &result.name, system_override) {
                 Ok(package) => {
                     // Display package name (bold)
-                    logging::msg(style!("bold", "{}", package.name));
+                    messages::msg(style!("bold", "{}", package.name));
 
                     // Display description
-                    logging::msg(format!("    {}", package.desc));
+                    messages::msg(format!("    {}", package.desc));
 
                     // Display type and categories on same line
                     let mut meta_info = String::new();
@@ -203,12 +203,12 @@ fn display_info_result(
                     }
 
                     if !meta_info.is_empty() {
-                        logging::msg(format!("    {}", meta_info));
+                        messages::msg(format!("    {}", meta_info));
                     }
 
                     // Show which repo this is from
                     if result.repos.len() > 1 {
-                        logging::msg(format!(
+                        messages::msg(format!(
                             "    Available in: {}",
                             result
                                 .repos
@@ -223,15 +223,15 @@ fn display_info_result(
                                 .join(", ")
                         ));
                     } else {
-                        logging::msg(format!("    Repository: {}", green!("{}", repo_name)));
+                        messages::msg(format!("    Repository: {}", green!("{}", repo_name)));
                     }
 
-                    logging::blank();
+                    messages::blank();
                 }
                 Err(e) => {
-                    logging::msg(format!("  {} [{}]", result.name, green!("{}", repo_name)));
-                    logging::msg(format!("    Error loading package info: {}", e));
-                    logging::blank();
+                    messages::msg(format!("  {} [{}]", result.name, green!("{}", repo_name)));
+                    messages::msg(format!("    Error loading package info: {}", e));
+                    messages::blank();
                 }
             }
         }
@@ -246,10 +246,10 @@ fn display_info_result(
             match load_collection(&collection_path) {
                 Ok(collection) => {
                     // Display collection name (bold)
-                    logging::msg(style!("bold", "{}", collection.name));
+                    messages::msg(style!("bold", "{}", collection.name));
 
                     // Display description
-                    logging::msg(format!("    {}", collection.desc));
+                    messages::msg(format!("    {}", collection.desc));
 
                     // Display type and categories on same line
                     let mut meta_info = String::new();
@@ -266,16 +266,16 @@ fn display_info_result(
                         ));
                     }
 
-                    logging::msg(format!("    {}", meta_info));
+                    messages::msg(format!("    {}", meta_info));
 
                     // Show packages in collection
                     if !collection.packages.is_empty() {
-                        logging::msg(format!("    Packages: {}", collection.packages.join(", ")));
+                        messages::msg(format!("    Packages: {}", collection.packages.join(", ")));
                     }
 
                     // Show which repo this is from
                     if result.repos.len() > 1 {
-                        logging::msg(format!(
+                        messages::msg(format!(
                             "    Available in: {}",
                             result
                                 .repos
@@ -290,15 +290,15 @@ fn display_info_result(
                                 .join(", ")
                         ));
                     } else {
-                        logging::msg(format!("    Repository: {}", green!("{}", repo_name)));
+                        messages::msg(format!("    Repository: {}", green!("{}", repo_name)));
                     }
 
-                    logging::blank();
+                    messages::blank();
                 }
                 Err(e) => {
-                    logging::msg(format!("  {} [{}]", result.name, green!("{}", repo_name)));
-                    logging::msg(format!("    Error loading collection info: {}", e));
-                    logging::blank();
+                    messages::msg(format!("  {} [{}]", result.name, green!("{}", repo_name)));
+                    messages::msg(format!("    Error loading collection info: {}", e));
+                    messages::blank();
                 }
             }
         }

@@ -5,6 +5,7 @@ mod cli;
 mod commands;
 mod config;
 mod logging;
+mod messages;
 mod system;
 mod utilities;
 mod utils;

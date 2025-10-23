@@ -29,7 +29,7 @@ pub fn should_log(level: &str) -> bool {
     }
 }
 
-/// Log a trace message
+/// Log a trace message (most verbose)
 pub fn trace(message: impl std::fmt::Display) {
     if should_log("trace") {
         println!("{}{}", style!("dim,magenta", "[TRACE] "), style!("dim,white", "{}", message));
@@ -64,30 +64,10 @@ pub fn error(message: impl std::fmt::Display) {
     }
 }
 
-/// Log a failure message (always displayed)
-pub fn failure(message: impl std::fmt::Display) {
-    println!("{}{}", style!("red", "[FAILURE] "), message);
-}
-
-/// Log a success message (always displayed)
-pub fn success(message: impl std::fmt::Display) {
-    println!("{}{}", style!("green", "[SUCCESS] "), message);
-}
-
 /// Log a note message (shown at debug level or higher)
 pub fn note(message: impl std::fmt::Display) {
     if should_log("debug") {
         println!("{}{}", style!("dim,blue", "[NOTE] "), style!("dim,white", "{}", message));
     }
-}
-
-/// Print a message
-pub fn msg(message: impl std::fmt::Display) {
-    println!("{}", message);
-}
-
-/// Print a blank line
-pub fn blank() {
-    println!();
 }
 

@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::logging;
+use crate::messages;
 use crate::system::SystemInfo;
 use crate::utilities::{
     load_package, BuildEnvironment, ContainerRuntime, SourceryImageBuilder, GitRepo,
@@ -22,17 +23,17 @@ pub fn handle_build(
     verbose: bool,
     noconfirm: bool,
 ) {
-    logging::msg(format!("Building package: {}", package));
-    logging::msg(format!(
+    messages::msg(format!("Building package: {}", package));
+    messages::msg(format!(
         "  Target system: {} {} ({})",
         system_info.distro_name, system_info.distro_version_id, system_info.arch
     ));
 
     if let Some(ref branch) = branch {
-        logging::msg(format!("  From branch: {}", branch));
+        messages::msg(format!("  From branch: {}", branch));
     }
     if let Some(ref tag) = tag {
-        logging::msg(format!("  From tag: {}", tag));
+        messages::msg(format!("  From tag: {}", tag));
     }
 
     // Determine build environment
@@ -41,7 +42,7 @@ pub fn handle_build(
     } else if local {
         false
     } else if chroot {
-        logging::msg(red!("Chroot builds are not yet implemented"));
+        messages::msg(red!("Chroot builds are not yet implemented"));
         return;
     } else {
         // Use default from config
@@ -54,15 +55,15 @@ pub fn handle_build(
         "local"
     };
 
-    logging::msg(format!("  Build environment: {}", environment));
+    messages::msg(format!("  Build environment: {}", environment));
 
     // Step 1: Load package definition
-    logging::msg("Loading package definition...");
+    messages::msg("Loading package definition...");
     
     let package_def = match load_package_definition(config, package, &system_info.distro_id, verbose) {
         Ok(pkg) => pkg,
         Err(e) => {
-            logging::msg(red!("Failed to load package: {}", e));
+            messages::msg(red!("Failed to load package: {}", e));
             return;
         }
     };
@@ -75,13 +76,13 @@ pub fn handle_build(
     let build_stage = match &package_def.build {
         Some(stage) => stage,
         None => {
-            logging::msg(red!("Package '{}' does not have a build stage defined", package));
+            messages::msg(red!("Package '{}' does not have a build stage defined", package));
             return;
         }
     };
 
     // Step 2: Clone/update source repository
-    logging::msg("Setting up source repository...");
+    messages::msg("Setting up source repository...");
     
     let source_dir = config.local_storage_path().join("source").join(package);
     let branch_to_use = branch.or_else(|| {
@@ -93,7 +94,7 @@ pub fn handle_build(
     });
 
     if package_def.repo.is_empty() {
-        logging::msg(red!("Package '{}' does not have a repository URL defined", package));
+        messages::msg(red!("Package '{}' does not have a repository URL defined", package));
         return;
     }
 
@@ -102,7 +103,7 @@ pub fn handle_build(
     let git_repo = match setup_source_repository(repo_url, &source_dir, branch_to_use.as_deref(), tag.as_deref(), verbose) {
         Ok(repo) => repo,
         Err(e) => {
-            logging::msg(red!("Failed to setup source repository: {}", e));
+            messages::msg(red!("Failed to setup source repository: {}", e));
             return;
         }
     };
@@ -111,12 +112,12 @@ pub fn handle_build(
     let commit_hash = match git_repo.get_short_commit_hash() {
         Ok(hash) => hash,
         Err(e) => {
-            logging::msg(red!("Failed to get commit hash: {}", e));
+            messages::msg(red!("Failed to get commit hash: {}", e));
             return;
         }
     };
 
-    logging::msg(format!("  Source ready at commit: {}", commit_hash));
+    messages::msg(format!("  Source ready at commit: {}", commit_hash));
 
     // Step 3: Setup build environment
     let install_prefix = config.system_install_path();
@@ -129,15 +130,15 @@ pub fn handle_build(
     );
 
     if let Err(e) = build_env.setup_directories() {
-        logging::msg(red!("Failed to setup build directories: {}", e));
+        messages::msg(red!("Failed to setup build directories: {}", e));
         return;
     }
 
     // Check if artifacts already exist
     if build_env.artifacts_exist() && !noconfirm {
-        logging::msg(format!("Artifacts already exist for commit {}", commit_hash));
+        messages::msg(format!("Artifacts already exist for commit {}", commit_hash));
         if !confirm {
-            logging::msg("Skipping build. Use --confirm to rebuild.");
+            messages::msg("Skipping build. Use --confirm to rebuild.");
             return;
         }
     }
@@ -145,18 +146,18 @@ pub fn handle_build(
     // Step 4: Execute build
     if use_container {
         if let Err(e) = build_with_container(&build_env, build_stage, system_info, verbose) {
-            logging::msg(red!("Build failed: {}", e));
+            messages::msg(red!("Build failed: {}", e));
             return;
         }
     } else {
         if let Err(e) = build_local(&build_env, build_stage, verbose) {
-            logging::msg(red!("Build failed: {}", e));
+            messages::msg(red!("Build failed: {}", e));
             return;
         }
     }
 
-    logging::msg(green!("Build completed successfully!"));
-    logging::msg(format!("Artifacts available at: {}", build_env.artifacts_dir.display()));
+    messages::success("Build completed successfully!");
+    messages::msg(format!("Artifacts available at: {}", build_env.artifacts_dir.display()));
 }
 
 /// Load package definition with system-specific overrides
@@ -231,13 +232,13 @@ fn build_with_container(
     system_info: &SystemInfo,
     verbose: bool,
 ) -> Result<(), String> {
-    logging::msg("Building in container environment...");
+    messages::msg("Building in container environment...");
 
     // Detect container runtime
     let runtime = ContainerRuntime::detect()
         .map_err(|e| format!("Container runtime not found: {}", e))?;
 
-    logging::msg(format!("  Using container runtime: {}", runtime.command()));
+    messages::msg(format!("  Using container runtime: {}", runtime.command()));
 
     // Build base image if needed
     let containerfiles_dir = std::path::PathBuf::from("/etc/sourcery/containers");
@@ -260,11 +261,11 @@ fn build_with_container(
         None
     };
 
-    logging::msg(format!("  Building base image for {} {}...", system_info.distro_id, version.unwrap_or("latest")));
+    messages::msg(format!("  Building base image for {} {}...", system_info.distro_id, version.unwrap_or("latest")));
     
     let image_tag = image_builder.build_base_image(&system_info.distro_id, version)?;
 
-    logging::msg(format!("  Using image: {}", image_tag));
+    messages::msg(format!("  Using image: {}", image_tag));
 
     // Prepare environment variables
     let env_vars = build_env.get_env_vars();
@@ -328,7 +329,7 @@ set -e
         logging::debug(format!("Build script:\n{}", build_script));
     }
 
-    logging::msg("  Executing build command...");
+    messages::msg("  Executing build command...");
 
     // Run the build
     let output = runtime.run(&image_tag, &build_script, &volumes, Some(&env_vec))
@@ -368,7 +369,7 @@ fn build_local(
     build_stage: &crate::utilities::PackageStage,
     verbose: bool,
 ) -> Result<(), String> {
-    logging::msg("Building locally...");
+    messages::msg("Building locally...");
 
     // Get build command
     let build_command = match &build_stage.command {
@@ -396,7 +397,7 @@ fn build_local(
         cmd.env(key, value);
     }
 
-    logging::msg("  Executing build command...");
+    messages::msg("  Executing build command...");
 
     let output = cmd.output()
         .map_err(|e| format!("Failed to execute build command: {}", e))?;

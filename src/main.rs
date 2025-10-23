@@ -6,6 +6,7 @@ mod commands;
 mod config;
 mod system;
 mod utils;
+mod utilities;
 
 use clap::Parser;
 use cli::{Cli, Commands};

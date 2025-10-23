@@ -266,3 +266,144 @@ fn display_info_result(
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+    
+    #[test]
+    fn test_search_in_directory_exact_match() {
+        let temp_dir = TempDir::new().unwrap();
+        let packages_dir = temp_dir.path().join("packages");
+        fs::create_dir(&packages_dir).unwrap();
+        fs::create_dir(packages_dir.join("neovim")).unwrap();
+        fs::create_dir(packages_dir.join("vim")).unwrap();
+        fs::create_dir(packages_dir.join("tmux")).unwrap();
+        
+        let mut results = HashMap::new();
+        search_in_directory(&packages_dir, "vim", true, "test-repo", &mut results);
+        
+        assert_eq!(results.len(), 1);
+        assert!(results.contains_key("vim"));
+        assert_eq!(results["vim"], vec!["test-repo"]);
+    }
+    
+    #[test]
+    fn test_search_in_directory_fuzzy_match() {
+        let temp_dir = TempDir::new().unwrap();
+        let packages_dir = temp_dir.path().join("packages");
+        fs::create_dir(&packages_dir).unwrap();
+        fs::create_dir(packages_dir.join("neovim")).unwrap();
+        fs::create_dir(packages_dir.join("vim")).unwrap();
+        fs::create_dir(packages_dir.join("tmux")).unwrap();
+        
+        let mut results = HashMap::new();
+        search_in_directory(&packages_dir, "vim", false, "test-repo", &mut results);
+        
+        // Should match both "vim" and "neovim"
+        assert_eq!(results.len(), 2);
+        assert!(results.contains_key("vim"));
+        assert!(results.contains_key("neovim"));
+    }
+    
+    #[test]
+    fn test_search_in_directory_case_insensitive() {
+        let temp_dir = TempDir::new().unwrap();
+        let packages_dir = temp_dir.path().join("packages");
+        fs::create_dir(&packages_dir).unwrap();
+        fs::create_dir(packages_dir.join("Neovim")).unwrap();
+        
+        let mut results = HashMap::new();
+        search_in_directory(&packages_dir, "neovim", false, "test-repo", &mut results);
+        
+        assert_eq!(results.len(), 1);
+        assert!(results.contains_key("Neovim"));
+    }
+    
+    #[test]
+    fn test_search_in_directory_no_match() {
+        let temp_dir = TempDir::new().unwrap();
+        let packages_dir = temp_dir.path().join("packages");
+        fs::create_dir(&packages_dir).unwrap();
+        fs::create_dir(packages_dir.join("vim")).unwrap();
+        
+        let mut results = HashMap::new();
+        search_in_directory(&packages_dir, "emacs", true, "test-repo", &mut results);
+        
+        assert_eq!(results.len(), 0);
+    }
+    
+    #[test]
+    fn test_search_in_directory_multiple_repos() {
+        let temp_dir = TempDir::new().unwrap();
+        let packages_dir = temp_dir.path().join("packages");
+        fs::create_dir(&packages_dir).unwrap();
+        fs::create_dir(packages_dir.join("vim")).unwrap();
+        
+        let mut results = HashMap::new();
+        search_in_directory(&packages_dir, "vim", true, "repo1", &mut results);
+        search_in_directory(&packages_dir, "vim", true, "repo2", &mut results);
+        
+        assert_eq!(results.len(), 1);
+        assert_eq!(results["vim"], vec!["repo1", "repo2"]);
+    }
+    
+    #[test]
+    fn test_search_in_directory_ignores_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let packages_dir = temp_dir.path().join("packages");
+        fs::create_dir(&packages_dir).unwrap();
+        fs::create_dir(packages_dir.join("vim")).unwrap();
+        fs::File::create(packages_dir.join("readme.txt")).unwrap();
+        
+        let mut results = HashMap::new();
+        search_in_directory(&packages_dir, "readme", false, "test-repo", &mut results);
+        
+        // Should not match files, only directories
+        assert_eq!(results.len(), 0);
+    }
+    
+    #[test]
+    fn test_search_in_directory_nonexistent() {
+        let temp_dir = TempDir::new().unwrap();
+        let packages_dir = temp_dir.path().join("nonexistent");
+        
+        let mut results = HashMap::new();
+        search_in_directory(&packages_dir, "vim", false, "test-repo", &mut results);
+        
+        // Should not panic, just return no results
+        assert_eq!(results.len(), 0);
+    }
+    
+    #[test]
+    fn test_display_search_result_single_repo() {
+        let result = SearchResult {
+            name: "vim".to_string(),
+            repos: vec!["main".to_string()],
+        };
+        
+        // This will print output, but we're mainly testing it doesn't panic
+        display_search_result(&result);
+    }
+    
+    #[test]
+    fn test_display_search_result_multiple_repos() {
+        let result = SearchResult {
+            name: "vim".to_string(),
+            repos: vec!["main".to_string(), "wip".to_string()],
+        };
+        
+        display_search_result(&result);
+    }
+    
+    #[test]
+    fn test_display_search_result_no_repos() {
+        let result = SearchResult {
+            name: "vim".to_string(),
+            repos: vec![],
+        };
+        
+        display_search_result(&result);
+    }
+}

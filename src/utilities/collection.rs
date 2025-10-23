@@ -109,5 +109,97 @@ packages = ["package1", "package2"]
         assert_eq!(collection.categories, vec!["test", "development"]);
         assert_eq!(collection.packages, vec!["package1", "package2"]);
     }
+    
+    #[test]
+    fn test_load_collection_not_found() {
+        let temp_dir = TempDir::new().unwrap();
+        let collection_path = temp_dir.path().join("nonexistent.toml");
+        
+        let result = load_collection(&collection_path);
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Failed to read collection file"));
+    }
+    
+    #[test]
+    fn test_load_collection_invalid_toml() {
+        let temp_dir = TempDir::new().unwrap();
+        let collection_path = temp_dir.path().join("test.toml");
+        
+        let mut file = fs::File::create(&collection_path).unwrap();
+        file.write_all(b"invalid toml [[[").unwrap();
+        
+        let result = load_collection(&collection_path);
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Failed to parse collection file"));
+    }
+    
+    #[test]
+    fn test_list_collections() {
+        let temp_dir = TempDir::new().unwrap();
+        let collections_dir = temp_dir.path().join("collections");
+        fs::create_dir(&collections_dir).unwrap();
+        
+        // Create collection directories with matching TOML files
+        let clidev_dir = collections_dir.join("clidev");
+        fs::create_dir(&clidev_dir).unwrap();
+        let mut file = fs::File::create(clidev_dir.join("clidev.toml")).unwrap();
+        file.write_all(b"name = \"clidev\"\ndesc = \"test\"\ntype = \"collection\"\ncategories = []\npackages = []").unwrap();
+        
+        let devtools_dir = collections_dir.join("devtools");
+        fs::create_dir(&devtools_dir).unwrap();
+        let mut file = fs::File::create(devtools_dir.join("devtools.toml")).unwrap();
+        file.write_all(b"name = \"devtools\"\ndesc = \"test\"\ntype = \"collection\"\ncategories = []\npackages = []").unwrap();
+        
+        // Create a directory without a matching TOML file
+        fs::create_dir(collections_dir.join("incomplete")).unwrap();
+        
+        // Create a hidden directory (should be ignored)
+        let hidden_dir = collections_dir.join(".hidden");
+        fs::create_dir(&hidden_dir).unwrap();
+        let mut file = fs::File::create(hidden_dir.join(".hidden.toml")).unwrap();
+        file.write_all(b"name = \"hidden\"\ndesc = \"test\"\ntype = \"collection\"\ncategories = []\npackages = []").unwrap();
+        
+        let result = list_collections(&collections_dir);
+        
+        assert!(result.is_ok());
+        let collections = result.unwrap();
+        assert_eq!(collections.len(), 2);
+        
+        let names: Vec<String> = collections.iter().map(|(name, _)| name.clone()).collect();
+        assert!(names.contains(&"clidev".to_string()));
+        assert!(names.contains(&"devtools".to_string()));
+        assert!(!names.contains(&"incomplete".to_string()));
+        assert!(!names.contains(&".hidden".to_string()));
+        
+        // Check that they're sorted
+        assert_eq!(names, vec!["clidev", "devtools"]);
+    }
+    
+    #[test]
+    fn test_list_collections_empty_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let collections_dir = temp_dir.path().join("collections");
+        fs::create_dir(&collections_dir).unwrap();
+        
+        let result = list_collections(&collections_dir);
+        
+        assert!(result.is_ok());
+        let collections = result.unwrap();
+        assert_eq!(collections.len(), 0);
+    }
+    
+    #[test]
+    fn test_list_collections_nonexistent_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let collections_dir = temp_dir.path().join("nonexistent");
+        
+        let result = list_collections(&collections_dir);
+        
+        assert!(result.is_ok());
+        let collections = result.unwrap();
+        assert_eq!(collections.len(), 0);
+    }
 }
 

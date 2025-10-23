@@ -294,5 +294,215 @@ mod tests {
         assert_eq!(stage1.command, Some("cmd1".to_string()));
         assert_eq!(stage1.artifacts, Some(vec!["artifact1".to_string()]));
     }
+    
+    #[test]
+    fn test_package_stage_merge_all_fields() {
+        let mut stage1 = PackageStage::default();
+        
+        let stage2 = PackageStage {
+            dependencies: Some(vec!["dep1".to_string()]),
+            command: Some("make".to_string()),
+            artifacts: Some(vec!["bin/app".to_string()]),
+            prerequisites: Some(vec!["clean".to_string()]),
+            privileged: Some(true),
+            priviledged: Some(false),
+        };
+        
+        stage1.merge(&stage2);
+        
+        assert_eq!(stage1.dependencies, Some(vec!["dep1".to_string()]));
+        assert_eq!(stage1.command, Some("make".to_string()));
+        assert_eq!(stage1.artifacts, Some(vec!["bin/app".to_string()]));
+        assert_eq!(stage1.prerequisites, Some(vec!["clean".to_string()]));
+        assert_eq!(stage1.privileged, Some(true));
+        assert_eq!(stage1.priviledged, Some(false));
+    }
+    
+    #[test]
+    fn test_package_merge() {
+        let mut base_package = Package {
+            name: "test".to_string(),
+            desc: "base description".to_string(),
+            repo: vec!["https://github.com/test/test.git".to_string()],
+            branch: "main".to_string(),
+            package_type: Some("tool".to_string()),
+            categories: Some(vec!["dev".to_string()]),
+            build: Some(PackageStage {
+                command: Some("make".to_string()),
+                ..Default::default()
+            }),
+            install: None,
+            update: None,
+            uninstall: None,
+            purge: None,
+        };
+        
+        let override_package = Package {
+            name: String::new(),
+            desc: String::new(),
+            repo: vec![],
+            branch: String::new(),
+            package_type: Some("application".to_string()),
+            categories: Some(vec!["utility".to_string()]),
+            build: Some(PackageStage {
+                dependencies: Some(vec!["gcc".to_string()]),
+                ..Default::default()
+            }),
+            install: Some(PackageStage {
+                command: Some("make install".to_string()),
+                ..Default::default()
+            }),
+            update: None,
+            uninstall: None,
+            purge: None,
+        };
+        
+        base_package.merge(&override_package);
+        
+        // Name, desc, repo, branch should remain unchanged when empty in override
+        assert_eq!(base_package.name, "test");
+        assert_eq!(base_package.desc, "base description");
+        assert_eq!(base_package.repo, vec!["https://github.com/test/test.git"]);
+        assert_eq!(base_package.branch, "main");
+        
+        // Type and categories should be overridden
+        assert_eq!(base_package.package_type, Some("application".to_string()));
+        assert_eq!(base_package.categories, Some(vec!["utility".to_string()]));
+        
+        // Build should be merged
+        assert!(base_package.build.is_some());
+        let build = base_package.build.unwrap();
+        assert_eq!(build.command, Some("make".to_string()));
+        assert_eq!(build.dependencies, Some(vec!["gcc".to_string()]));
+        
+        // Install should be added
+        assert!(base_package.install.is_some());
+    }
+    
+    #[test]
+    fn test_load_package_not_found() {
+        use tempfile::TempDir;
+        
+        let temp_dir = TempDir::new().unwrap();
+        let result = load_package(temp_dir.path(), "nonexistent", None);
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Failed to read base package file"));
+    }
+    
+    #[test]
+    fn test_load_package_invalid_toml() {
+        use tempfile::TempDir;
+        use std::io::Write;
+        
+        let temp_dir = TempDir::new().unwrap();
+        let package_path = temp_dir.path().join("test.toml");
+        
+        let mut file = fs::File::create(&package_path).unwrap();
+        file.write_all(b"invalid toml [[[").unwrap();
+        
+        let result = load_package(temp_dir.path(), "test", None);
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Failed to parse base package file"));
+    }
+    
+    #[test]
+    fn test_load_package_with_override() {
+        use tempfile::TempDir;
+        use std::io::Write;
+        
+        let temp_dir = TempDir::new().unwrap();
+        
+        // Create base package
+        let base_toml = r#"
+name = "test-package"
+desc = "A test package"
+repo = ["https://github.com/test/test.git"]
+branch = "main"
+
+[build]
+command = "make"
+"#;
+        let base_path = temp_dir.path().join("test-package.toml");
+        let mut file = fs::File::create(&base_path).unwrap();
+        file.write_all(base_toml.as_bytes()).unwrap();
+        
+        // Create system-specific override
+        let override_toml = r#"
+[build]
+dependencies = ["gcc", "make"]
+"#;
+        let override_path = temp_dir.path().join("test-package.ubuntu.toml");
+        let mut file = fs::File::create(&override_path).unwrap();
+        file.write_all(override_toml.as_bytes()).unwrap();
+        
+        let result = load_package(temp_dir.path(), "test-package", Some("ubuntu"));
+        
+        assert!(result.is_ok());
+        let package = result.unwrap();
+        assert_eq!(package.name, "test-package");
+        assert!(package.build.is_some());
+        let build = package.build.unwrap();
+        assert_eq!(build.command, Some("make".to_string()));
+        assert_eq!(build.dependencies, Some(vec!["gcc".to_string(), "make".to_string()]));
+    }
+    
+    #[test]
+    fn test_list_packages() {
+        use tempfile::TempDir;
+        
+        let temp_dir = TempDir::new().unwrap();
+        let packages_dir = temp_dir.path().join("packages");
+        fs::create_dir(&packages_dir).unwrap();
+        
+        // Create some package directories
+        fs::create_dir(packages_dir.join("vim")).unwrap();
+        fs::create_dir(packages_dir.join("neovim")).unwrap();
+        fs::create_dir(packages_dir.join("tmux")).unwrap();
+        fs::create_dir(packages_dir.join(".hidden")).unwrap(); // Should be ignored
+        
+        let result = list_packages(&packages_dir);
+        
+        assert!(result.is_ok());
+        let packages = result.unwrap();
+        assert_eq!(packages.len(), 3);
+        assert!(packages.contains(&"vim".to_string()));
+        assert!(packages.contains(&"neovim".to_string()));
+        assert!(packages.contains(&"tmux".to_string()));
+        assert!(!packages.contains(&".hidden".to_string()));
+        
+        // Check that they're sorted
+        assert_eq!(packages, vec!["neovim", "tmux", "vim"]);
+    }
+    
+    #[test]
+    fn test_list_packages_empty_directory() {
+        use tempfile::TempDir;
+        
+        let temp_dir = TempDir::new().unwrap();
+        let packages_dir = temp_dir.path().join("packages");
+        fs::create_dir(&packages_dir).unwrap();
+        
+        let result = list_packages(&packages_dir);
+        
+        assert!(result.is_ok());
+        let packages = result.unwrap();
+        assert_eq!(packages.len(), 0);
+    }
+    
+    #[test]
+    fn test_list_packages_nonexistent_directory() {
+        use tempfile::TempDir;
+        
+        let temp_dir = TempDir::new().unwrap();
+        let packages_dir = temp_dir.path().join("nonexistent");
+        
+        let result = list_packages(&packages_dir);
+        
+        assert!(result.is_ok());
+        let packages = result.unwrap();
+        assert_eq!(packages.len(), 0);
+    }
 }
 

@@ -3,20 +3,20 @@ mod clean;
 mod health;
 mod install;
 mod list;
-mod package;
+mod update;
 mod purge;
 mod search;
 mod uninstall;
-mod update;
+mod update_repo;
 
 pub use build::handle_build;
 pub use clean::handle_clean;
 pub use health::handle_health;
 pub use install::handle_install;
 pub use list::handle_list;
-pub use package::handle_update_package;
+pub use update::handle_update;
 pub use purge::handle_purge;
 pub use search::handle_search;
 pub use uninstall::handle_uninstall;
-pub use update::handle_update;
+pub use update_repo::handle_update_repo;
 

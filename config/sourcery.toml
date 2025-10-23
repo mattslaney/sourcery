@@ -7,5 +7,6 @@ system_path = '/usr/local/bin'
 [build]
 default_environment = "container"
 
-[repositories]
-main = "http://github.com/mattslaney/sourcery-repository.git"
+[repositories.main]
+url = "http://github.com/mattslaney/sourcery-repository.git"
+branch = "main" 

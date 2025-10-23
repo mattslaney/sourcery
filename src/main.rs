@@ -40,7 +40,7 @@ fn main() {
 
     // Handle top-level flags
     if cli.update {
-        commands::handle_update(&config, &system_info);
+        commands::handle_update_repo(&config, &system_info);
         return;
     }
 
@@ -69,7 +69,7 @@ fn main() {
             commands::handle_install(&config, &system_info, &package, branch, tag, user, system, confirm, verbose, noconfirm);
         }
         Some(Commands::Update { package, branch, tag, confirm, verbose, noconfirm }) => {
-            commands::handle_update_package(&config, &system_info, &package, branch, tag, confirm, verbose, noconfirm);
+            commands::handle_update(&config, &system_info, &package, branch, tag, confirm, verbose, noconfirm);
         }
         Some(Commands::Uninstall { package, confirm, verbose, noconfirm }) => {
             commands::handle_uninstall(&config, &system_info, &package, confirm, verbose, noconfirm);

@@ -25,7 +25,13 @@ pub struct BuildConfig {
 
 #[derive(Debug, Deserialize)]
 pub struct RepositoriesConfig {
-    pub main: String,
+    pub main: RepositoryInfo,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RepositoryInfo {
+    pub url: String,
+    pub branch: String,
 }
 
 impl Config {
@@ -98,8 +104,9 @@ system_path = '/usr/local/bin'
 [build]
 default_environment = "container"
 
-[repositories]
-main = "http://github.com/test/repo.git"
+[repositories.main]
+url = "http://github.com/test/repo.git"
+branch = "main"
 "#
         )
         .unwrap();
@@ -117,7 +124,8 @@ main = "http://github.com/test/repo.git"
         assert_eq!(config.install.user_path, "~/.local/bin");
         assert_eq!(config.install.system_path, "/usr/local/bin");
         assert_eq!(config.build.default_environment, "container");
-        assert_eq!(config.repositories.main, "http://github.com/test/repo.git");
+        assert_eq!(config.repositories.main.url, "http://github.com/test/repo.git");
+        assert_eq!(config.repositories.main.branch, "main");
     }
 
     #[test]

@@ -9,7 +9,7 @@ pub struct Cli {
     #[arg(long)]
     pub update: bool,
 
-    /// Clean out old sources and outputs
+    /// Clean out old sources and artifacts
     #[arg(long)]
     pub clean: bool,
 

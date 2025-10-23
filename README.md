@@ -21,7 +21,7 @@ See `make help` for the complete list of available commands.
 # Usage
 ```shell
 scry --update # Update the package repositories
-scry --clean # Clean out old sources and outputs
+scry --clean # Clean out old sources and artifacts
 scry --health # check health of scry (dependencies, container runtime, etc)
 scry list --installed # List packages installed with scry
 scry list --upgradable # List installed packages that are upgradable
@@ -94,7 +94,7 @@ The local storage directory will be used for storage of package repositories and
    directory containing sourcery package repositories
  - ~/.local/share/sourcery/source/<package>
    directory containing package source code for local builds
- - ~/.local/share/sourcery/outputs/<package>
+ - ~/.local/share/sourcery/artifacts/<package>
    directory containing resulting build artifacts
  - ~/.local/share/sourcery/logs/sourcery.log
    the log file for the sourcery application

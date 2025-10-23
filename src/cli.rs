@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
 #[command(name = "sourcery")]
+#[command(version)]
 #[command(about = "A package manager for maintaining system packages from source", long_about = None)]
 pub struct Cli {
     /// Update the package repositories

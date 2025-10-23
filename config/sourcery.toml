@@ -10,7 +10,9 @@ default_environment = "container"
 [repositories.main]
 url = "http://github.com/mattslaney/sourcery-repository.git"
 branch = "main" 
+priority = 10
 
 [repositories.wip]
 url = "http://github.com/mattslaney/sourcery-repository.git"
-branch = "wip" 
+branch = "wip"
+priority = 20 

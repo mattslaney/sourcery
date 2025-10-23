@@ -24,10 +24,16 @@ pub struct BuildConfig {
     pub default_environment: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct RepositoryInfo {
     pub url: String,
     pub branch: String,
+    #[serde(default = "default_priority")]
+    pub priority: u32,
+}
+
+fn default_priority() -> u32 {
+    100
 }
 
 impl Config {
@@ -76,6 +82,15 @@ impl Config {
     pub fn system_install_path(&self) -> PathBuf {
         expand_tilde(&self.install.system_path)
     }
+
+    /// Get repositories sorted by priority (lowest priority number first)
+    pub fn repositories_by_priority(&self) -> Vec<(String, RepositoryInfo)> {
+        let mut repos: Vec<_> = self.repositories.iter()
+            .map(|(name, info)| (name.clone(), info.clone()))
+            .collect();
+        repos.sort_by_key(|(_, info)| info.priority);
+        repos
+    }
 }
 
 #[cfg(test)]
@@ -103,6 +118,7 @@ default_environment = "container"
 [repositories.main]
 url = "http://github.com/test/repo.git"
 branch = "main"
+priority = 10
 "#
         )
         .unwrap();
@@ -203,14 +219,17 @@ default_environment = "container"
 [repositories.main]
 url = "http://github.com/test/repo.git"
 branch = "main"
+priority = 10
 
 [repositories.wip]
 url = "http://github.com/test/repo.git"
 branch = "wip"
+priority = 20
 
 [repositories.dev]
 url = "http://github.com/test/dev-repo.git"
 branch = "develop"
+priority = 15
 "#
         )
         .unwrap();
@@ -223,15 +242,18 @@ branch = "develop"
         // Verify main repository
         assert!(config.repositories.contains_key("main"));
         assert_eq!(config.repositories.get("main").unwrap().branch, "main");
+        assert_eq!(config.repositories.get("main").unwrap().priority, 10);
         
         // Verify wip repository
         assert!(config.repositories.contains_key("wip"));
         assert_eq!(config.repositories.get("wip").unwrap().branch, "wip");
+        assert_eq!(config.repositories.get("wip").unwrap().priority, 20);
         
         // Verify dev repository
         assert!(config.repositories.contains_key("dev"));
         assert_eq!(config.repositories.get("dev").unwrap().url, "http://github.com/test/dev-repo.git");
         assert_eq!(config.repositories.get("dev").unwrap().branch, "develop");
+        assert_eq!(config.repositories.get("dev").unwrap().priority, 15);
     }
 
     #[test]
@@ -243,6 +265,84 @@ branch = "develop"
         // Verify we have 1 repository
         assert_eq!(config.repositories.len(), 1);
         assert!(config.repositories.contains_key("main"));
+    }
+
+    #[test]
+    fn test_repositories_by_priority() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("priority_test.toml");
+        let mut file = fs::File::create(&config_path).unwrap();
+        writeln!(
+            file,
+            r#"
+local_storage = '~/.local/share/sourcery'
+
+[install]
+user_path = '~/.local/bin'
+system_path = '/usr/local/bin'
+
+[build]
+default_environment = "container"
+
+[repositories.main]
+url = "http://github.com/test/repo.git"
+branch = "main"
+priority = 30
+
+[repositories.wip]
+url = "http://github.com/test/repo.git"
+branch = "wip"
+priority = 10
+
+[repositories.dev]
+url = "http://github.com/test/dev-repo.git"
+branch = "develop"
+priority = 20
+"#
+        )
+        .unwrap();
+
+        let config = Config::load_from_path(&config_path).unwrap();
+        let repos = config.repositories_by_priority();
+
+        // Should be sorted by priority: wip (10), dev (20), main (30)
+        assert_eq!(repos.len(), 3);
+        assert_eq!(repos[0].0, "wip");
+        assert_eq!(repos[0].1.priority, 10);
+        assert_eq!(repos[1].0, "dev");
+        assert_eq!(repos[1].1.priority, 20);
+        assert_eq!(repos[2].0, "main");
+        assert_eq!(repos[2].1.priority, 30);
+    }
+
+    #[test]
+    fn test_default_priority() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("default_priority_test.toml");
+        let mut file = fs::File::create(&config_path).unwrap();
+        writeln!(
+            file,
+            r#"
+local_storage = '~/.local/share/sourcery'
+
+[install]
+user_path = '~/.local/bin'
+system_path = '/usr/local/bin'
+
+[build]
+default_environment = "container"
+
+[repositories.main]
+url = "http://github.com/test/repo.git"
+branch = "main"
+"#
+        )
+        .unwrap();
+
+        let config = Config::load_from_path(&config_path).unwrap();
+        
+        // Priority should default to 100
+        assert_eq!(config.repositories.get("main").unwrap().priority, 100);
     }
 }
 

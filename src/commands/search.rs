@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::system::SystemInfo;
-use crate::{green, msg};
+use crate::utilities::{load_package, load_collection};
+use crate::{green, msg, style};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -13,12 +14,13 @@ struct SearchResult {
 
 pub fn handle_search(
     config: &Config,
-    _system_info: &SystemInfo,
+    system_info: &SystemInfo,
     query: &str,
     _fuzzy: bool,
     exact: bool,
     package: bool,
     collection: bool,
+    info: bool,
 ) {
     let search_type = if exact { "exact" } else { "fuzzy" };
     let target = if package {
@@ -78,7 +80,11 @@ pub fn handle_search(
         
         // Display each result
         for result in search_results {
-            display_search_result(&result);
+            if info {
+                display_info_result(config, system_info, &result, !collection);
+            } else {
+                display_search_result(&result);
+            }
         }
     }
 }
@@ -136,5 +142,127 @@ fn display_search_result(result: &SearchResult) {
     }
     
     msg!("{}", output);
+}
+
+fn display_info_result(
+    config: &Config,
+    system_info: &SystemInfo,
+    result: &SearchResult,
+    is_package: bool,
+) {
+    if result.repos.is_empty() {
+        return;
+    }
+    
+    // Use the first repo (highest priority)
+    let repo_name = &result.repos[0];
+    let repo_path = config.local_storage_path().join("repositories").join(repo_name);
+    
+    if is_package {
+        // Try to load package information
+        let package_dir = repo_path.join("packages").join(&result.name);
+        
+        if package_dir.exists() {
+            // Determine system-specific override
+            let system_override = Some(system_info.distro_id.as_str());
+            
+            match load_package(&package_dir, &result.name, system_override) {
+                Ok(package) => {
+                    // Display package name (bold)
+                    msg!("  {}", style!("bold", "{}", package.name));
+                    
+                    // Display description
+                    msg!("    {}", package.desc);
+                    
+                    // Display type and categories on same line
+                    let mut meta_info = String::new();
+                    
+                    if let Some(pkg_type) = &package.package_type {
+                        meta_info.push_str(&format!("Type: {}", green!("{}", pkg_type)));
+                    }
+                    
+                    if let Some(categories) = &package.categories {
+                        if !categories.is_empty() {
+                            if !meta_info.is_empty() {
+                                meta_info.push_str("  |  ");
+                            }
+                            meta_info.push_str(&format!("Categories: {}", categories.join(", ")));
+                        }
+                    }
+                    
+                    if !meta_info.is_empty() {
+                        msg!("    {}", meta_info);
+                    }
+                    
+                    // Show which repo this is from
+                    if result.repos.len() > 1 {
+                        msg!("    Available in: {}", result.repos.iter()
+                            .enumerate()
+                            .map(|(i, r)| if i == 0 { green!("{}", r) } else { r.to_string() })
+                            .collect::<Vec<_>>()
+                            .join(", "));
+                    } else {
+                        msg!("    Repository: {}", green!("{}", repo_name));
+                    }
+                    
+                    msg!();
+                }
+                Err(e) => {
+                    msg!("  {} [{}]", result.name, green!("{}", repo_name));
+                    msg!("    Error loading package info: {}", e);
+                    msg!();
+                }
+            }
+        }
+    } else {
+        // Try to load collection information
+        let collection_path = repo_path.join("collections").join(&result.name).join(format!("{}.toml", result.name));
+        
+        if collection_path.exists() {
+            match load_collection(&collection_path) {
+                Ok(collection) => {
+                    // Display collection name (bold)
+                    msg!("  {}", style!("bold", "{}", collection.name));
+                    
+                    // Display description
+                    msg!("    {}", collection.desc);
+                    
+                    // Display type and categories on same line
+                    let mut meta_info = String::new();
+                    
+                    meta_info.push_str(&format!("Type: {}", green!("{}", collection.collection_type)));
+                    
+                    if !collection.categories.is_empty() {
+                        meta_info.push_str(&format!("  |  Categories: {}", collection.categories.join(", ")));
+                    }
+                    
+                    msg!("    {}", meta_info);
+                    
+                    // Show packages in collection
+                    if !collection.packages.is_empty() {
+                        msg!("    Packages: {}", collection.packages.join(", "));
+                    }
+                    
+                    // Show which repo this is from
+                    if result.repos.len() > 1 {
+                        msg!("    Available in: {}", result.repos.iter()
+                            .enumerate()
+                            .map(|(i, r)| if i == 0 { green!("{}", r) } else { r.to_string() })
+                            .collect::<Vec<_>>()
+                            .join(", "));
+                    } else {
+                        msg!("    Repository: {}", green!("{}", repo_name));
+                    }
+                    
+                    msg!();
+                }
+                Err(e) => {
+                    msg!("  {} [{}]", result.name, green!("{}", repo_name));
+                    msg!("    Error loading collection info: {}", e);
+                    msg!();
+                }
+            }
+        }
+    }
 }
 

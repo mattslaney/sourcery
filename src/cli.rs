@@ -54,6 +54,10 @@ pub enum Commands {
         /// Search for a collection
         #[arg(long)]
         collection: bool,
+
+        /// Show detailed information about the package/collection
+        #[arg(long)]
+        info: bool,
     },
 
     /// Build a package

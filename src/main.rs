@@ -63,8 +63,8 @@ fn main() {
         Some(Commands::List { installed, upgradable }) => {
             commands::handle_list(&config, &system_info, installed, upgradable);
         }
-        Some(Commands::Search { query, fuzzy, exact, package, collection }) => {
-            commands::handle_search(&config, &system_info, &query, fuzzy, exact, package, collection);
+        Some(Commands::Search { query, fuzzy, exact, package, collection, info }) => {
+            commands::handle_search(&config, &system_info, &query, fuzzy, exact, package, collection, info);
         }
         Some(Commands::Build { package, branch, tag, container, local, chroot, confirm, verbose, noconfirm }) => {
             commands::handle_build(&config, &system_info, &package, branch, tag, container, local, chroot, confirm, verbose, noconfirm);

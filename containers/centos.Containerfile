@@ -1,13 +1,13 @@
 ARG VERSION=latest
-FROM fedora:${VERSION}
+FROM centos:${VERSION}
 
-RUN dnf install -y \
+RUN yum install -y \
     make \
     gcc \
     git \
     clang \
     libtool \
-    && dnf clean all
+    && yum clean all
 
 WORKDIR /usr/src
 ENTRYPOINT ["/bin/sh", "-c"]

@@ -1,5 +1,4 @@
 ARG VERSION=latest
-
 FROM debian:${VERSION}
 
 RUN apt-get update && apt-get install -y \
@@ -11,5 +10,4 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src
-
 ENTRYPOINT ["/bin/sh", "-c"]

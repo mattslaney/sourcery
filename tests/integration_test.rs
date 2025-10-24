@@ -176,3 +176,14 @@ fn test_clean_command() {
         || stdout.contains("Nothing to clean")
     );
 }
+
+#[test]
+fn test_uninstall_command() {
+    let output = run_with_test_config(&["uninstall", "test-package"]);
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Uninstalling package: test-package"));
+    // The command will fail to find the package, but we should at least
+    // see the initial output
+}

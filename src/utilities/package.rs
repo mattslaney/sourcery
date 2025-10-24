@@ -29,6 +29,12 @@ pub struct PackageStage {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub priviledged: Option<bool>,
+
+    /// Installation scope restrictions (for install stage)
+    /// Valid values: "system", "user"
+    /// If empty or not provided, both scopes are allowed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<Vec<String>>,
 }
 
 impl PackageStage {
@@ -36,6 +42,35 @@ impl PackageStage {
     /// Checks both correct and misspelled field names
     pub fn is_privileged(&self) -> bool {
         self.privileged.unwrap_or(false) || self.priviledged.unwrap_or(false)
+    }
+
+    /// Check if a given installation scope is allowed
+    /// Returns true if scope is allowed, false otherwise
+    /// If no scope restriction is defined (None or empty), all scopes are allowed
+    /// Only "system" and "user" are recognized as valid scopes; others are ignored
+    pub fn is_scope_allowed(&self, scope: &str) -> bool {
+        match &self.scope {
+            None => true, // No restriction, allow all scopes
+            Some(scopes) => {
+                if scopes.is_empty() {
+                    true // Empty array means allow all scopes
+                } else {
+                    // Filter to only valid scopes (system/user), then check if requested scope matches
+                    let valid_scopes: Vec<String> = scopes
+                        .iter()
+                        .map(|s| s.to_lowercase())
+                        .filter(|s| s == "system" || s == "user")
+                        .collect();
+                    
+                    // If no valid scopes remain after filtering, allow all
+                    if valid_scopes.is_empty() {
+                        true
+                    } else {
+                        valid_scopes.contains(&scope.to_lowercase())
+                    }
+                }
+            }
+        }
     }
 
     /// Merge another stage into this one, with the other stage taking precedence
@@ -57,6 +92,9 @@ impl PackageStage {
         }
         if other.priviledged.is_some() {
             self.priviledged = other.priviledged;
+        }
+        if other.scope.is_some() {
+            self.scope = other.scope.clone();
         }
     }
 }
@@ -295,6 +333,63 @@ mod tests {
     }
 
     #[test]
+    fn test_package_stage_scope_validation() {
+        // Test no scope restriction (None) - allows all
+        let stage = PackageStage::default();
+        assert!(stage.is_scope_allowed("system"));
+        assert!(stage.is_scope_allowed("user"));
+
+        // Test empty scope array - allows all
+        let stage = PackageStage {
+            scope: Some(vec![]),
+            ..Default::default()
+        };
+        assert!(stage.is_scope_allowed("system"));
+        assert!(stage.is_scope_allowed("user"));
+
+        // Test system only
+        let stage = PackageStage {
+            scope: Some(vec!["system".to_string()]),
+            ..Default::default()
+        };
+        assert!(stage.is_scope_allowed("system"));
+        assert!(!stage.is_scope_allowed("user"));
+
+        // Test user only
+        let stage = PackageStage {
+            scope: Some(vec!["user".to_string()]),
+            ..Default::default()
+        };
+        assert!(!stage.is_scope_allowed("system"));
+        assert!(stage.is_scope_allowed("user"));
+
+        // Test both scopes allowed
+        let stage = PackageStage {
+            scope: Some(vec!["system".to_string(), "user".to_string()]),
+            ..Default::default()
+        };
+        assert!(stage.is_scope_allowed("system"));
+        assert!(stage.is_scope_allowed("user"));
+
+        // Test case insensitivity
+        let stage = PackageStage {
+            scope: Some(vec!["SYSTEM".to_string()]),
+            ..Default::default()
+        };
+        assert!(stage.is_scope_allowed("system"));
+        assert!(stage.is_scope_allowed("System"));
+
+        // Test invalid scopes are ignored (but shouldn't break)
+        let stage = PackageStage {
+            scope: Some(vec!["invalid".to_string(), "system".to_string()]),
+            ..Default::default()
+        };
+        assert!(stage.is_scope_allowed("system"));
+        assert!(!stage.is_scope_allowed("user"));
+        assert!(!stage.is_scope_allowed("invalid"));
+    }
+
+    #[test]
     fn test_package_stage_merge() {
         let mut stage1 = PackageStage {
             dependencies: Some(vec!["dep1".to_string()]),
@@ -326,6 +421,7 @@ mod tests {
             prerequisites: Some(vec!["clean".to_string()]),
             privileged: Some(true),
             priviledged: Some(false),
+            scope: Some(vec!["system".to_string()]),
         };
 
         stage1.merge(&stage2);
@@ -336,6 +432,38 @@ mod tests {
         assert_eq!(stage1.prerequisites, Some(vec!["clean".to_string()]));
         assert_eq!(stage1.privileged, Some(true));
         assert_eq!(stage1.priviledged, Some(false));
+        assert_eq!(stage1.scope, Some(vec!["system".to_string()]));
+    }
+
+    #[test]
+    fn test_package_stage_merge_scope() {
+        // Test that scope is properly merged
+        let mut stage1 = PackageStage {
+            scope: Some(vec!["user".to_string()]),
+            ..Default::default()
+        };
+
+        let stage2 = PackageStage {
+            scope: Some(vec!["system".to_string()]),
+            ..Default::default()
+        };
+
+        stage1.merge(&stage2);
+        assert_eq!(stage1.scope, Some(vec!["system".to_string()]));
+
+        // Test that scope is not overridden if not present in override
+        let mut stage3 = PackageStage {
+            scope: Some(vec!["user".to_string()]),
+            ..Default::default()
+        };
+
+        let stage4 = PackageStage {
+            scope: None,
+            ..Default::default()
+        };
+
+        stage3.merge(&stage4);
+        assert_eq!(stage3.scope, Some(vec!["user".to_string()]));
     }
 
     #[test]

@@ -73,6 +73,38 @@ pub fn handle_install(
         }
     };
 
+    // Check if the requested installation scope is allowed
+    let requested_scope = if use_system { "system" } else { "user" };
+    if !install_stage.is_scope_allowed(requested_scope) {
+        messages::failure(format!(
+            "Package '{}' cannot be installed in '{}' scope.",
+            package, requested_scope
+        ));
+        
+        // Provide helpful message about allowed scopes
+        if let Some(allowed_scopes) = &install_stage.scope {
+            let valid_scopes: Vec<String> = allowed_scopes
+                .iter()
+                .filter(|s| s.to_lowercase() == "system" || s.to_lowercase() == "user")
+                .map(|s| s.clone())
+                .collect();
+            
+            if !valid_scopes.is_empty() {
+                messages::msg(format!("Allowed scope(s): {}", valid_scopes.join(", ")));
+                
+                // Suggest correct command
+                if valid_scopes.len() == 1 {
+                    let scope = valid_scopes[0].to_lowercase();
+                    messages::msg(format!(
+                        "Please use: sourcery install {} --{}",
+                        package, scope
+                    ));
+                }
+            }
+        }
+        return;
+    }
+
     // Step 2: Execute prerequisites FIRST (they may create the source directory)
     if let Some(prerequisites) = &install_stage.prerequisites {
         if !prerequisites.is_empty() {

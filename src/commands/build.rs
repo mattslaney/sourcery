@@ -18,7 +18,7 @@ pub fn handle_build(
     container: Option<Option<String>>,
     local: bool,
     chroot: bool,
-    confirm: bool,
+    force: bool,
     verbose: bool,
     noconfirm: bool,
 ) {
@@ -134,22 +134,20 @@ pub fn handle_build(
     }
 
     // Check if artifacts already exist
-    if build_env.artifacts_exist() && !noconfirm {
+    if build_env.artifacts_exist() && !force {
         messages::msg(format!("Artifacts already exist for commit {}", commit_hash));
-        if !confirm {
-            messages::msg("Skipping build. Use --confirm to rebuild.");
-            return;
-        }
+        messages::msg("Skipping build. Use --force to rebuild.");
+        return;
     }
 
     // Step 4: Execute build
     if use_container {
-        if let Err(e) = build_with_container(&build_env, build_stage, system_info, verbose) {
+        if let Err(e) = build_with_container(&build_env, build_stage, system_info, verbose, noconfirm) {
             messages::failure(format!("Build failed: {}", e));
             return;
         }
     } else {
-        if let Err(e) = build_local(&build_env, build_stage, verbose) {
+        if let Err(e) = build_local(&build_env, build_stage, verbose, noconfirm) {
             messages::failure(format!("Build failed: {}", e));
             return;
         }
@@ -230,6 +228,7 @@ fn build_with_container(
     build_stage: &crate::utilities::PackageStage,
     system_info: &SystemInfo,
     verbose: bool,
+    noconfirm: bool,
 ) -> Result<(), String> {
     messages::msg("Building in container environment...");
 
@@ -330,6 +329,19 @@ set -e
 
     messages::msg("  Executing build command...");
 
+    // Show the command that will be executed
+    messages::info(format!("Container command: {} run {} ...", runtime.command(), image_tag));
+    if verbose {
+        messages::info(format!("Build script:\n{}", build_script));
+    }
+
+    // Ask for confirmation unless noconfirm is set
+    if !noconfirm {
+        if !messages::confirm("Proceed with build?") {
+            return Err("Build cancelled by user".to_string());
+        }
+    }
+
     // Run the build
     let output = runtime.run(&image_tag, &build_script, &volumes, Some(&env_vec))
         .map_err(|e| format!("Failed to run container: {}", e))?;
@@ -372,6 +384,7 @@ fn build_local(
     build_env: &BuildEnvironment,
     build_stage: &crate::utilities::PackageStage,
     verbose: bool,
+    noconfirm: bool,
 ) -> Result<(), String> {
     messages::msg("Building locally...");
 
@@ -402,6 +415,17 @@ fn build_local(
     }
 
     messages::msg("  Executing build command...");
+    
+    // Show the command that will be executed
+    messages::info(format!("Build command: sh -c '{}'", build_command));
+    messages::info(format!("Working directory: {}", build_env.source_dir.display()));
+
+    // Ask for confirmation unless noconfirm is set
+    if !noconfirm {
+        if !messages::confirm("Proceed with build?") {
+            return Err("Build cancelled by user".to_string());
+        }
+    }
 
     let output = cmd.output()
         .map_err(|e| format!("Failed to execute build command: {}", e))?;

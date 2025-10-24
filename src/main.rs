@@ -98,7 +98,7 @@ fn main() {
             container,
             local,
             chroot,
-            confirm,
+            force,
             verbose,
             noconfirm,
         }) => {
@@ -111,7 +111,7 @@ fn main() {
                 container,
                 local,
                 chroot,
-                confirm,
+                force,
                 verbose,
                 noconfirm,
             );
@@ -122,7 +122,6 @@ fn main() {
             tag,
             user,
             system,
-            confirm,
             verbose,
             noconfirm,
         }) => {
@@ -134,7 +133,6 @@ fn main() {
                 tag,
                 user,
                 system,
-                confirm,
                 verbose,
                 noconfirm,
             );
@@ -143,7 +141,6 @@ fn main() {
             package,
             branch,
             tag,
-            confirm,
             verbose,
             noconfirm,
         }) => {
@@ -153,14 +150,12 @@ fn main() {
                 &package,
                 branch,
                 tag,
-                confirm,
                 verbose,
                 noconfirm,
             );
         }
         Some(Commands::Uninstall {
             package,
-            confirm,
             verbose,
             noconfirm,
         }) => {
@@ -168,18 +163,16 @@ fn main() {
                 &config,
                 &system_info,
                 &package,
-                confirm,
                 verbose,
                 noconfirm,
             );
         }
         Some(Commands::Purge {
             package,
-            confirm,
             verbose,
             noconfirm,
         }) => {
-            commands::handle_purge(&config, &system_info, &package, confirm, verbose, noconfirm);
+            commands::handle_purge(&config, &system_info, &package, verbose, noconfirm);
         }
         None => {
             eprintln!("No command specified. Use --help for usage information.");

@@ -10,7 +10,6 @@ pub fn handle_install(
     tag: Option<String>,
     user: bool,
     system: bool,
-    confirm: bool,
     verbose: bool,
     noconfirm: bool,
 ) {
@@ -33,8 +32,8 @@ pub fn handle_install(
 
     println!("  Scope: {}", scope);
     println!(
-        "  Confirm: {}, Verbose: {}, NoConfirm: {}",
-        confirm, verbose, noconfirm
+        "  Verbose: {}, NoConfirm: {}",
+        verbose, noconfirm
     );
 
     // TODO: Implement install logic

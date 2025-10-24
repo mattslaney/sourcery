@@ -124,7 +124,7 @@ fn test_build_with_options() {
         .arg("build")
         .arg("test-package")
         .arg("--verbose")
-        .arg("--confirm")
+        .arg("--force")
         .output()
         .expect("Failed to execute command");
 

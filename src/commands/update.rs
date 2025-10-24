@@ -7,7 +7,6 @@ pub fn handle_update(
     package: &str,
     branch: Option<String>,
     tag: Option<String>,
-    confirm: bool,
     verbose: bool,
     noconfirm: bool,
 ) {
@@ -21,8 +20,8 @@ pub fn handle_update(
     }
 
     println!(
-        "  Confirm: {}, Verbose: {}, NoConfirm: {}",
-        confirm, verbose, noconfirm
+        "  Verbose: {}, NoConfirm: {}",
+        verbose, noconfirm
     );
 
     // TODO: Implement update logic

@@ -260,12 +260,7 @@ impl SourceryImageBuilder {
         let version = version.unwrap_or("latest");
         let tag = format!("sourcery-build-{}:{}", distro_id, version);
 
-        // Check if image already exists
-        if self.runtime.image_exists(&tag) {
-            return Ok(tag);
-        }
-
-        // Build the image
+        // Build the image (container runtime will use layer caching if nothing changed)
         let build_args = [("VERSION", version)];
         let output = self
             .runtime

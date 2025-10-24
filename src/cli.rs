@@ -89,15 +89,15 @@ pub enum Commands {
         #[arg(long)]
         chroot: bool,
 
-        /// Confirm before commands
+        /// Force rebuild even if artifacts already exist
         #[arg(long)]
-        confirm: bool,
+        force: bool,
 
         /// Be verbose
         #[arg(long)]
         verbose: bool,
 
-        /// Don't ask for any confirmation
+        /// Don't ask for any confirmation (for unattended execution)
         #[arg(long)]
         noconfirm: bool,
     },
@@ -123,15 +123,11 @@ pub enum Commands {
         #[arg(long)]
         system: bool,
 
-        /// Confirm before commands
-        #[arg(long)]
-        confirm: bool,
-
         /// Be verbose
         #[arg(long)]
         verbose: bool,
 
-        /// Don't ask for any confirmation
+        /// Don't ask for any confirmation (for unattended execution)
         #[arg(long)]
         noconfirm: bool,
     },
@@ -149,15 +145,11 @@ pub enum Commands {
         #[arg(long)]
         tag: Option<String>,
 
-        /// Confirm before commands
-        #[arg(long)]
-        confirm: bool,
-
         /// Be verbose
         #[arg(long)]
         verbose: bool,
 
-        /// Don't ask for any confirmation
+        /// Don't ask for any confirmation (for unattended execution)
         #[arg(long)]
         noconfirm: bool,
     },
@@ -167,15 +159,11 @@ pub enum Commands {
         /// Package name to uninstall
         package: String,
 
-        /// Confirm before commands
-        #[arg(long)]
-        confirm: bool,
-
         /// Be verbose
         #[arg(long)]
         verbose: bool,
 
-        /// Don't ask for any confirmation
+        /// Don't ask for any confirmation (for unattended execution)
         #[arg(long)]
         noconfirm: bool,
     },
@@ -185,15 +173,11 @@ pub enum Commands {
         /// Package name to purge
         package: String,
 
-        /// Confirm before commands
-        #[arg(long)]
-        confirm: bool,
-
         /// Be verbose
         #[arg(long)]
         verbose: bool,
 
-        /// Don't ask for any confirmation
+        /// Don't ask for any confirmation (for unattended execution)
         #[arg(long)]
         noconfirm: bool,
     },

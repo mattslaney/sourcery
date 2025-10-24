@@ -210,8 +210,8 @@ log_level = "info"
 local_storage = '~/.local/share/sourcery'
 
 [install]
-user_path = '~/.local/bin'
-system_path = '/usr/local/bin'
+user_path = '~/.local'
+system_path = '/usr/local'
 
 [build]
 default_environment = "container"
@@ -235,8 +235,8 @@ priority = 10
 
         assert_eq!(config.log_level, "info");
         assert_eq!(config.local_storage, "~/.local/share/sourcery");
-        assert_eq!(config.install.user_path, "~/.local/bin");
-        assert_eq!(config.install.system_path, "/usr/local/bin");
+        assert_eq!(config.install.user_path, "~/.local");
+        assert_eq!(config.install.system_path, "/usr/local");
         assert_eq!(config.build.default_environment, "container");
         assert_eq!(
             config.repositories.get("main").unwrap().url,
@@ -293,7 +293,7 @@ priority = 10
         let config = Config::load_from_path(&config_path).unwrap();
 
         let path = config.user_install_path();
-        assert!(path.to_string_lossy().contains(".local/bin"));
+        assert!(path.to_string_lossy().ends_with(".local"));
         assert!(!path.to_string_lossy().starts_with('~'));
     }
 
@@ -304,7 +304,7 @@ priority = 10
         let config = Config::load_from_path(&config_path).unwrap();
 
         let path = config.system_install_path();
-        assert_eq!(path, PathBuf::from("/usr/local/bin"));
+        assert_eq!(path, PathBuf::from("/usr/local"));
     }
 
     #[test]
@@ -319,8 +319,8 @@ log_level = "info"
 local_storage = '~/.local/share/sourcery'
 
 [install]
-user_path = '~/.local/bin'
-system_path = '/usr/local/bin'
+user_path = '~/.local'
+system_path = '/usr/local'
 
 [build]
 default_environment = "container"
@@ -400,8 +400,8 @@ log_level = "info"
 local_storage = '~/.local/share/sourcery'
 
 [install]
-user_path = '~/.local/bin'
-system_path = '/usr/local/bin'
+user_path = '~/.local'
+system_path = '/usr/local'
 
 [build]
 default_environment = "container"
@@ -449,8 +449,8 @@ log_level = "info"
 local_storage = '~/.local/share/sourcery'
 
 [install]
-user_path = '~/.local/bin'
-system_path = '/usr/local/bin'
+user_path = '~/.local'
+system_path = '/usr/local'
 
 [build]
 default_environment = "container"
@@ -479,8 +479,8 @@ branch = "main"
 local_storage = '~/.local/share/sourcery'
 
 [install]
-user_path = '~/.local/bin'
-system_path = '/usr/local/bin'
+user_path = '~/.local'
+system_path = '/usr/local'
 
 [build]
 default_environment = "container"
@@ -510,8 +510,8 @@ log_level = "info"
 local_storage = '~/.local/share/sourcery'
 
 [install]
-user_path = '~/.local/bin'
-system_path = '/usr/local/bin'
+user_path = '~/.local'
+system_path = '/usr/local'
 
 [build]
 default_environment = "container"
@@ -547,8 +547,8 @@ log_level = "info"
 local_storage = '~/.local/share/sourcery'
 
 [install]
-user_path = '~/.local/bin'
-system_path = '/usr/local/bin'
+user_path = '~/.local'
+system_path = '/usr/local'
 
 [build]
 default_environment = "container"
@@ -595,8 +595,8 @@ log_level = "info"
 local_storage = '~/.local/share/sourcery'
 
 [install]
-user_path = '~/.local/bin'
-system_path = '/usr/local/bin'
+user_path = '~/.local'
+system_path = '/usr/local'
 
 [build]
 default_environment = "container"
@@ -624,8 +624,8 @@ log_level = "info"
 local_storage = '~/.local/share/sourcery'
 
 [install]
-user_path = '~/.local/bin'
-system_path = '/usr/local/bin'
+user_path = '~/.local'
+system_path = '/usr/local'
 
 [build]
 default_environment = "container"
@@ -655,8 +655,8 @@ log_level = "info"
 local_storage = '~/.local/share/sourcery'
 
 [install]
-user_path = '~/.local/bin'
-system_path = '/usr/local/bin'
+user_path = '~/.local'
+system_path = '/usr/local'
 
 [build]
 default_environment = "container"
@@ -684,8 +684,8 @@ log_level = "info"
 local_storage = '~/.local/share/sourcery'
 
 [install]
-user_path = '~/.local/bin'
-system_path = '/usr/local/bin'
+user_path = '~/.local'
+system_path = '/usr/local'
 
 [build]
 default_environment = "container"

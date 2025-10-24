@@ -2,8 +2,8 @@ log_level = "info"
 local_storage = 'test_data/local_storage'
 
 [install]
-user_path = 'test_data/user_bin'
-system_path = 'test_data/system_bin'
+user_path = 'test_data/user'
+system_path = 'test_data/system'
 
 [build]
 default_environment = "container"

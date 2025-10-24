@@ -78,8 +78,8 @@ scry purge neovim --noconfirm # purge without any.confirmation
 local_storage = '~/.local/share/sourcery'
 
 [install]
-user_path = '~/.local/bin'
-system_path = '/usr/local/bin'
+user_path = '~/.local'
+system_path = '/usr/local'
 
 [build]
 default_environment = "container"

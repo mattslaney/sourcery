@@ -1,3 +1,5 @@
+use std::fs;
+use std::path::PathBuf;
 use std::process::Command;
 
 fn get_binary_path() -> String {
@@ -5,12 +7,39 @@ fn get_binary_path() -> String {
     format!("{}/target/debug/sourcery", manifest_dir)
 }
 
+fn get_test_config_path() -> String {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    format!("{}/config/sourcery.test.toml", manifest_dir)
+}
+
+fn setup_test_dirs() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let test_data_dir = PathBuf::from(manifest_dir).join("test_data");
+    
+    // Clean up any existing test data
+    if test_data_dir.exists() {
+        let _ = fs::remove_dir_all(&test_data_dir);
+    }
+    
+    // Create fresh test directories
+    let _ = fs::create_dir_all(test_data_dir.join("local_storage"));
+    let _ = fs::create_dir_all(test_data_dir.join("user_bin"));
+    let _ = fs::create_dir_all(test_data_dir.join("system_bin"));
+}
+
+fn run_with_test_config(args: &[&str]) -> std::process::Output {
+    setup_test_dirs();
+    
+    Command::new(get_binary_path())
+        .args(args)
+        .env("SOURCERY_CONFIG_PATH", get_test_config_path())
+        .output()
+        .expect("Failed to execute command")
+}
+
 #[test]
 fn test_health_command() {
-    let output = Command::new(get_binary_path())
-        .arg("--health")
-        .output()
-        .expect("Failed to execute command");
+    let output = run_with_test_config(&["--health"]);
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -40,6 +69,7 @@ fn test_health_command() {
 
 #[test]
 fn test_help_command() {
+    // Help command doesn't load config, so we can use the binary directly
     let output = Command::new(get_binary_path())
         .arg("--help")
         .output()
@@ -57,6 +87,7 @@ fn test_help_command() {
 
 #[test]
 fn test_list_command_requires_flag() {
+    // List command without flags fails before loading config
     let output = Command::new(get_binary_path())
         .arg("list")
         .output()
@@ -70,11 +101,7 @@ fn test_list_command_requires_flag() {
 
 #[test]
 fn test_search_command() {
-    let output = Command::new(get_binary_path())
-        .arg("search")
-        .arg("test-package")
-        .output()
-        .expect("Failed to execute command");
+    let output = run_with_test_config(&["search", "test-package"]);
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -84,11 +111,7 @@ fn test_search_command() {
 
 #[test]
 fn test_build_command() {
-    let output = Command::new(get_binary_path())
-        .arg("build")
-        .arg("test-package")
-        .output()
-        .expect("Failed to execute command");
+    let output = run_with_test_config(&["build", "test-package"]);
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -97,6 +120,7 @@ fn test_build_command() {
 
 #[test]
 fn test_no_command_shows_error() {
+    // No command fails before loading config
     let output = Command::new(get_binary_path())
         .output()
         .expect("Failed to execute command");
@@ -108,6 +132,7 @@ fn test_no_command_shows_error() {
 
 #[test]
 fn test_version_flag() {
+    // Version flag doesn't load config
     let output = Command::new(get_binary_path())
         .arg("--version")
         .output()
@@ -120,13 +145,7 @@ fn test_version_flag() {
 
 #[test]
 fn test_build_with_options() {
-    let output = Command::new(get_binary_path())
-        .arg("build")
-        .arg("test-package")
-        .arg("--verbose")
-        .arg("--force")
-        .output()
-        .expect("Failed to execute command");
+    let output = run_with_test_config(&["build", "test-package", "--verbose", "--force"]);
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -137,13 +156,23 @@ fn test_build_with_options() {
 
 #[test]
 fn test_install_command() {
-    let output = Command::new(get_binary_path())
-        .arg("install")
-        .arg("test-package")
-        .output()
-        .expect("Failed to execute command");
+    let output = run_with_test_config(&["install", "test-package"]);
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Installing package: test-package"));
+}
+
+#[test]
+fn test_clean_command() {
+    let output = run_with_test_config(&["--clean", "--noconfirm"]);
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    
+    // The output should contain either "Cleaning sources and artifacts" or "Nothing to clean"
+    assert!(
+        stdout.contains("Cleaning sources and artifacts") 
+        || stdout.contains("Nothing to clean")
+    );
 }

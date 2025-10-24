@@ -21,6 +21,10 @@ pub struct Cli {
     #[arg(long)]
     pub health: bool,
 
+    /// Don't ask for any confirmation (for unattended execution)
+    #[arg(long)]
+    pub noconfirm: bool,
+
     #[command(subcommand)]
     pub command: Option<Commands>,
 }

@@ -55,7 +55,7 @@ fn main() {
     }
 
     if cli.clean {
-        commands::handle_clean(&config, &system_info);
+        commands::handle_clean(&config, &system_info, cli.noconfirm);
         return;
     }
 

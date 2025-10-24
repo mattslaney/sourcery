@@ -45,6 +45,15 @@ fn default_priority() -> u32 {
 impl Config {
     /// Load configuration from the standard hierarchy of locations
     pub fn load() -> Result<(Self, PathBuf), Box<dyn std::error::Error>> {
+        // Check if SOURCERY_CONFIG_PATH environment variable is set (for testing)
+        if let Ok(test_config_path) = std::env::var("SOURCERY_CONFIG_PATH") {
+            let path = PathBuf::from(&test_config_path);
+            if path.exists() {
+                let config = Self::load_from_path(&path)?;
+                return Ok((config, path));
+            }
+        }
+
         let config_locations = vec![
             "config/sourcery.toml",
             "~/.config/sourcery/sourcery.toml",

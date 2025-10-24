@@ -32,10 +32,54 @@ pub struct BuildConfig {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct RepositoryInfo {
-    pub url: String,
-    pub branch: String,
+    pub url: Option<String>,
+    pub branch: Option<String>,
+    pub path: Option<String>,
     #[serde(default = "default_priority")]
     pub priority: u32,
+}
+
+impl RepositoryInfo {
+    /// Returns true if this is a path-based repository
+    pub fn is_path_based(&self) -> bool {
+        self.path.is_some()
+    }
+
+    /// Returns true if this is a URL-based repository
+    pub fn is_url_based(&self) -> bool {
+        self.url.is_some()
+    }
+
+    /// Validates the repository configuration
+    /// A repository must have either (url + branch) OR path, but not both
+    pub fn validate(&self) -> Result<(), String> {
+        let has_url = self.url.is_some();
+        let has_path = self.path.is_some();
+        let has_branch = self.branch.is_some();
+
+        if !has_url && !has_path {
+            return Err("Repository must have either 'url' or 'path' specified".to_string());
+        }
+
+        if has_url && has_path {
+            return Err("Repository cannot have both 'url' and 'path' specified".to_string());
+        }
+
+        if has_url && !has_branch {
+            return Err("URL-based repository must have 'branch' specified".to_string());
+        }
+
+        if has_path && has_branch {
+            return Err("Path-based repository should not have 'branch' specified".to_string());
+        }
+
+        Ok(())
+    }
+
+    /// Get the expanded path for path-based repositories
+    pub fn expanded_path(&self) -> Option<PathBuf> {
+        self.path.as_ref().map(|p| expand_tilde(p))
+    }
 }
 
 fn default_priority() -> u32 {
@@ -71,6 +115,14 @@ impl Config {
     pub fn load_from_path(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
         let content = fs::read_to_string(path)?;
         let config: Config = toml::from_str(&content)?;
+        
+        // Validate all repositories
+        for (name, repo_info) in &config.repositories {
+            if let Err(e) = repo_info.validate() {
+                return Err(format!("Invalid repository '{}': {}", name, e).into());
+            }
+        }
+        
         Ok(config)
     }
 
@@ -157,9 +209,12 @@ priority = 10
         assert_eq!(config.build.default_environment, "container");
         assert_eq!(
             config.repositories.get("main").unwrap().url,
-            "http://github.com/test/repo.git"
+            Some("http://github.com/test/repo.git".to_string())
         );
-        assert_eq!(config.repositories.get("main").unwrap().branch, "main");
+        assert_eq!(
+            config.repositories.get("main").unwrap().branch,
+            Some("main".to_string())
+        );
     }
 
     #[test]
@@ -264,21 +319,30 @@ priority = 15
 
         // Verify main repository
         assert!(config.repositories.contains_key("main"));
-        assert_eq!(config.repositories.get("main").unwrap().branch, "main");
+        assert_eq!(
+            config.repositories.get("main").unwrap().branch,
+            Some("main".to_string())
+        );
         assert_eq!(config.repositories.get("main").unwrap().priority, 10);
 
         // Verify wip repository
         assert!(config.repositories.contains_key("wip"));
-        assert_eq!(config.repositories.get("wip").unwrap().branch, "wip");
+        assert_eq!(
+            config.repositories.get("wip").unwrap().branch,
+            Some("wip".to_string())
+        );
         assert_eq!(config.repositories.get("wip").unwrap().priority, 20);
 
         // Verify dev repository
         assert!(config.repositories.contains_key("dev"));
         assert_eq!(
             config.repositories.get("dev").unwrap().url,
-            "http://github.com/test/dev-repo.git"
+            Some("http://github.com/test/dev-repo.git".to_string())
         );
-        assert_eq!(config.repositories.get("dev").unwrap().branch, "develop");
+        assert_eq!(
+            config.repositories.get("dev").unwrap().branch,
+            Some("develop".to_string())
+        );
         assert_eq!(config.repositories.get("dev").unwrap().priority, 15);
     }
 
@@ -401,5 +465,224 @@ branch = "main"
 
         // Log level should default to "info"
         assert_eq!(config.log_level, "info");
+    }
+
+    #[test]
+    fn test_path_based_repository() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("path_repo_config.toml");
+        let mut file = fs::File::create(&config_path).unwrap();
+        writeln!(
+            file,
+            r#"
+log_level = "info"
+local_storage = '~/.local/share/sourcery'
+
+[install]
+user_path = '~/.local/bin'
+system_path = '/usr/local/bin'
+
+[build]
+default_environment = "container"
+
+[repositories.local]
+path = "/path/to/local/repo"
+priority = 5
+"#
+        )
+        .unwrap();
+
+        let config = Config::load_from_path(&config_path).unwrap();
+
+        assert_eq!(config.repositories.len(), 1);
+        let local_repo = config.repositories.get("local").unwrap();
+        assert_eq!(local_repo.path, Some("/path/to/local/repo".to_string()));
+        assert_eq!(local_repo.url, None);
+        assert_eq!(local_repo.branch, None);
+        assert_eq!(local_repo.priority, 5);
+        assert!(local_repo.is_path_based());
+        assert!(!local_repo.is_url_based());
+    }
+
+    #[test]
+    fn test_mixed_url_and_path_repositories() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("mixed_repos.toml");
+        let mut file = fs::File::create(&config_path).unwrap();
+        writeln!(
+            file,
+            r#"
+log_level = "info"
+local_storage = '~/.local/share/sourcery'
+
+[install]
+user_path = '~/.local/bin'
+system_path = '/usr/local/bin'
+
+[build]
+default_environment = "container"
+
+[repositories.remote]
+url = "http://github.com/test/repo.git"
+branch = "main"
+priority = 10
+
+[repositories.local]
+path = "/path/to/local/repo"
+priority = 5
+"#
+        )
+        .unwrap();
+
+        let config = Config::load_from_path(&config_path).unwrap();
+
+        assert_eq!(config.repositories.len(), 2);
+        
+        let remote_repo = config.repositories.get("remote").unwrap();
+        assert!(remote_repo.is_url_based());
+        assert!(!remote_repo.is_path_based());
+        
+        let local_repo = config.repositories.get("local").unwrap();
+        assert!(local_repo.is_path_based());
+        assert!(!local_repo.is_url_based());
+
+        // Check priority ordering
+        let repos = config.repositories_by_priority();
+        assert_eq!(repos[0].0, "local"); // priority 5
+        assert_eq!(repos[1].0, "remote"); // priority 10
+    }
+
+    #[test]
+    fn test_repository_validation_no_url_or_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("invalid_repo.toml");
+        let mut file = fs::File::create(&config_path).unwrap();
+        writeln!(
+            file,
+            r#"
+log_level = "info"
+local_storage = '~/.local/share/sourcery'
+
+[install]
+user_path = '~/.local/bin'
+system_path = '/usr/local/bin'
+
+[build]
+default_environment = "container"
+
+[repositories.invalid]
+priority = 10
+"#
+        )
+        .unwrap();
+
+        let result = Config::load_from_path(&config_path);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("must have either 'url' or 'path'"));
+    }
+
+    #[test]
+    fn test_repository_validation_both_url_and_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("both_url_and_path.toml");
+        let mut file = fs::File::create(&config_path).unwrap();
+        writeln!(
+            file,
+            r#"
+log_level = "info"
+local_storage = '~/.local/share/sourcery'
+
+[install]
+user_path = '~/.local/bin'
+system_path = '/usr/local/bin'
+
+[build]
+default_environment = "container"
+
+[repositories.invalid]
+url = "http://github.com/test/repo.git"
+path = "/path/to/local/repo"
+branch = "main"
+"#
+        )
+        .unwrap();
+
+        let result = Config::load_from_path(&config_path);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("cannot have both 'url' and 'path'"));
+    }
+
+    #[test]
+    fn test_repository_validation_url_without_branch() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("url_no_branch.toml");
+        let mut file = fs::File::create(&config_path).unwrap();
+        writeln!(
+            file,
+            r#"
+log_level = "info"
+local_storage = '~/.local/share/sourcery'
+
+[install]
+user_path = '~/.local/bin'
+system_path = '/usr/local/bin'
+
+[build]
+default_environment = "container"
+
+[repositories.invalid]
+url = "http://github.com/test/repo.git"
+"#
+        )
+        .unwrap();
+
+        let result = Config::load_from_path(&config_path);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("must have 'branch' specified"));
+    }
+
+    #[test]
+    fn test_repository_validation_path_with_branch() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("path_with_branch.toml");
+        let mut file = fs::File::create(&config_path).unwrap();
+        writeln!(
+            file,
+            r#"
+log_level = "info"
+local_storage = '~/.local/share/sourcery'
+
+[install]
+user_path = '~/.local/bin'
+system_path = '/usr/local/bin'
+
+[build]
+default_environment = "container"
+
+[repositories.invalid]
+path = "/path/to/local/repo"
+branch = "main"
+"#
+        )
+        .unwrap();
+
+        let result = Config::load_from_path(&config_path);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("should not have 'branch' specified"));
+    }
+
+    #[test]
+    fn test_repository_expanded_path() {
+        let repo_info = RepositoryInfo {
+            url: None,
+            branch: None,
+            path: Some("~/local/repo".to_string()),
+            priority: 10,
+        };
+
+        let expanded = repo_info.expanded_path().unwrap();
+        // Should expand tilde
+        assert!(!expanded.to_string_lossy().starts_with('~'));
+        assert!(expanded.to_string_lossy().contains("local/repo"));
     }
 }

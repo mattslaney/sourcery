@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::system::SystemInfo;
 use std::fs;
+use std::os::unix::fs as unix_fs;
 use std::path::Path;
 use std::process::Command;
 
@@ -19,29 +20,86 @@ pub fn handle_update_repo(config: &Config, _system_info: &SystemInfo) {
     // Process each repository in the config
     for (name, repo_info) in &config.repositories {
         println!("\nProcessing repository '{}'...", name);
-        println!("  URL: {}", repo_info.url);
-        println!("  Branch: {}", repo_info.branch);
 
-        // Use the repository key as the directory name
-        let repo_path = repositories_dir.join(name);
+        if repo_info.is_path_based() {
+            // Handle path-based repository
+            let source_path = repo_info.expanded_path().unwrap();
+            println!("  Path: {}", source_path.display());
 
-        if repo_path.exists() {
-            // Repository exists, update it
-            println!("  Repository exists at: {}", repo_path.display());
-            if let Err(e) = update_repository(&repo_path, &repo_info.branch) {
-                eprintln!("  Error updating repository: {}", e);
+            if !source_path.exists() {
+                eprintln!("  ⚠ Warning: Path does not exist: {}", source_path.display());
+                continue;
+            }
+
+            if !source_path.is_dir() {
+                eprintln!("  ⚠ Warning: Path is not a directory: {}", source_path.display());
+                continue;
+            }
+
+            // Use the repository key as the symlink name
+            let link_path = repositories_dir.join(name);
+
+            if link_path.exists() || link_path.is_symlink() {
+                // Check if it's a symlink and if it points to the right place
+                if link_path.is_symlink() {
+                    match fs::read_link(&link_path) {
+                        Ok(target) => {
+                            if target == source_path {
+                                println!("  ✓ Symlink already exists and is correct");
+                                continue;
+                            } else {
+                                println!("  Updating symlink (target changed)...");
+                                if let Err(e) = fs::remove_file(&link_path) {
+                                    eprintln!("  Error removing old symlink: {}", e);
+                                    continue;
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("  Error reading symlink: {}", e);
+                            continue;
+                        }
+                    }
+                } else {
+                    eprintln!("  ⚠ Warning: Path exists but is not a symlink: {}", link_path.display());
+                    eprintln!("  Please remove it manually to use a path-based repository");
+                    continue;
+                }
+            }
+
+            // Create symlink
+            if let Err(e) = unix_fs::symlink(&source_path, &link_path) {
+                eprintln!("  Error creating symlink: {}", e);
             } else {
-                println!("  ✓ Repository updated successfully");
+                println!("  ✓ Symlink created successfully");
             }
         } else {
-            // Repository doesn't exist, clone it
-            println!("  Repository not found, cloning...");
-            if let Err(e) =
-                clone_repository(&repo_info.url, &repositories_dir, name, &repo_info.branch)
-            {
-                eprintln!("  Error cloning repository: {}", e);
+            // Handle URL-based repository
+            let url = repo_info.url.as_ref().unwrap();
+            let branch = repo_info.branch.as_ref().unwrap();
+            
+            println!("  URL: {}", url);
+            println!("  Branch: {}", branch);
+
+            // Use the repository key as the directory name
+            let repo_path = repositories_dir.join(name);
+
+            if repo_path.exists() {
+                // Repository exists, update it
+                println!("  Repository exists at: {}", repo_path.display());
+                if let Err(e) = update_repository(&repo_path, branch) {
+                    eprintln!("  Error updating repository: {}", e);
+                } else {
+                    println!("  ✓ Repository updated successfully");
+                }
             } else {
-                println!("  ✓ Repository cloned successfully");
+                // Repository doesn't exist, clone it
+                println!("  Repository not found, cloning...");
+                if let Err(e) = clone_repository(url, &repositories_dir, name, branch) {
+                    eprintln!("  Error cloning repository: {}", e);
+                } else {
+                    println!("  ✓ Repository cloned successfully");
+                }
             }
         }
     }

@@ -62,22 +62,29 @@ pub fn handle_health(config: &Config, system_info: &SystemInfo) {
     let repositories_dir = config.local_storage_path().join("repositories");
     for (name, repo_info) in &config.repositories {
         let repo_path = repositories_dir.join(name);
+        
+        let repo_type_info = if repo_info.is_path_based() {
+            format!("path: {}", repo_info.path.as_ref().unwrap())
+        } else {
+            format!("branch: {}", repo_info.branch.as_ref().unwrap())
+        };
+        
         if repo_path.exists() {
             messages::msg(format!(
                 "  {} Repository '{}' exists ({})",
                 green!("✓"),
                 name,
-                repo_info.branch
+                repo_type_info
             ));
         } else {
             messages::msg(format!(
                 "  {} Repository '{}' not found ({})",
                 orange!("⚠"),
                 name,
-                repo_info.branch
+                repo_type_info
             ));
             messages::msg(format!(
-                "    Run {} to clone repositories",
+                "    Run {} to setup repositories",
                 style!("bold", "sourcery --update")
             ));
         }

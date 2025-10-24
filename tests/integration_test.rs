@@ -187,3 +187,40 @@ fn test_uninstall_command() {
     // The command will fail to find the package, but we should at least
     // see the initial output
 }
+
+#[test]
+fn test_update_command() {
+    let output = run_with_test_config(&["update", "test-package"]);
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Updating package: test-package"));
+}
+
+#[test]
+fn test_update_with_branch() {
+    let output = run_with_test_config(&["update", "test-package", "--branch", "main"]);
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Updating package: test-package"));
+    assert!(stdout.contains("From branch: main"));
+}
+
+#[test]
+fn test_purge_command() {
+    let output = run_with_test_config(&["purge", "test-package", "--noconfirm"]);
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Purging package: test-package"));
+}
+
+#[test]
+fn test_purge_with_verbose() {
+    let output = run_with_test_config(&["purge", "test-package", "--verbose", "--noconfirm"]);
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Purging package: test-package"));
+}

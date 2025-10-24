@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::logging;
 use crate::messages;
+use crate::security;
 use crate::system::SystemInfo;
 use crate::utilities::{
     load_package, BuildEnvironment, ContainerRuntime, ContainerRuntimeType, 
@@ -22,6 +23,7 @@ pub fn handle_build(
     force: bool,
     verbose: bool,
     noconfirm: bool,
+    allow_dangerous: bool,
 ) {
     // Build operations never need root - drop privileges if running with sudo
     utils::ensure_not_root("build", verbose);
@@ -151,7 +153,7 @@ pub fn handle_build(
             return;
         }
     } else {
-        if let Err(e) = build_local(&build_env, build_stage, verbose, noconfirm) {
+        if let Err(e) = build_local(&build_env, build_stage, verbose, noconfirm, allow_dangerous) {
             messages::failure(format!("Build failed: {}", e));
             return;
         }
@@ -409,6 +411,7 @@ fn build_local(
     build_stage: &crate::utilities::PackageStage,
     verbose: bool,
     noconfirm: bool,
+    allow_dangerous: bool,
 ) -> Result<(), String> {
     messages::msg("Building locally...");
 
@@ -422,6 +425,40 @@ fn build_local(
 
     if verbose {
         logging::debug(format!("Build command: {}", build_command));
+    }
+
+    // Perform security analysis on the command
+    let security_analysis = security::analyze_command(build_command);
+    
+    match security_analysis.level {
+        security::SecurityLevel::Blocked => {
+            messages::failure("❌ This command contains forbidden operations that will never be executed:");
+            for reason in &security_analysis.reasons {
+                messages::failure(format!("   - {}", reason));
+            }
+            messages::blank();
+            messages::failure("This package cannot be built for safety reasons.");
+            return Err("Command blocked for security reasons".to_string());
+        }
+        security::SecurityLevel::Caution => {
+            if !allow_dangerous {
+                messages::caution("⚠️ Some actions in this command have been identified as potentially dangerous.");
+                messages::caution("Dangerous patterns detected:");
+                for reason in &security_analysis.reasons {
+                    messages::caution(format!("   - {}", reason));
+                }
+                messages::blank();
+                messages::caution("Please carefully review the commands before execution:");
+                messages::blank();
+                for line in build_command.lines() {
+                    messages::info(format!("   {}", line));
+                }
+                messages::blank();
+            }
+        }
+        security::SecurityLevel::Safe => {
+            // No additional warnings needed
+        }
     }
 
     // Prepare environment

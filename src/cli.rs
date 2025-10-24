@@ -104,6 +104,10 @@ pub enum Commands {
         /// Don't ask for any confirmation (for unattended execution)
         #[arg(long)]
         noconfirm: bool,
+
+        /// Allow execution of potentially dangerous commands without extra warnings
+        #[arg(long)]
+        allow_dangerous: bool,
     },
 
     /// Install a package
@@ -134,6 +138,10 @@ pub enum Commands {
         /// Don't ask for any confirmation (for unattended execution)
         #[arg(long)]
         noconfirm: bool,
+
+        /// Allow execution of potentially dangerous commands without extra warnings
+        #[arg(long)]
+        allow_dangerous: bool,
     },
 
     /// Update a package
@@ -156,6 +164,10 @@ pub enum Commands {
         /// Don't ask for any confirmation (for unattended execution)
         #[arg(long)]
         noconfirm: bool,
+
+        /// Allow execution of potentially dangerous commands without extra warnings
+        #[arg(long)]
+        allow_dangerous: bool,
     },
 
     /// Uninstall a package
@@ -170,6 +182,10 @@ pub enum Commands {
         /// Don't ask for any confirmation (for unattended execution)
         #[arg(long)]
         noconfirm: bool,
+
+        /// Allow execution of potentially dangerous commands without extra warnings
+        #[arg(long)]
+        allow_dangerous: bool,
     },
 
     /// Uninstall and purge all package data
@@ -184,5 +200,9 @@ pub enum Commands {
         /// Don't ask for any confirmation (for unattended execution)
         #[arg(long)]
         noconfirm: bool,
+
+        /// Allow execution of potentially dangerous commands without extra warnings
+        #[arg(long)]
+        allow_dangerous: bool,
     },
 }

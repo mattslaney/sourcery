@@ -2,6 +2,7 @@ use super::{handle_build, handle_install, handle_uninstall};
 use crate::config::Config;
 use crate::logging;
 use crate::messages;
+use crate::security;
 use crate::system::SystemInfo;
 use crate::utilities::{load_package, BuildEnvironment, GitRepo, Package, resolve_prerequisites};
 use crate::utils;
@@ -14,6 +15,7 @@ pub fn handle_update(
     tag: Option<String>,
     verbose: bool,
     noconfirm: bool,
+    allow_dangerous: bool,
 ) {
     // Update operations may need to check installation scope
     // For now, we don't drop privileges automatically since we may need them later
@@ -67,6 +69,7 @@ pub fn handle_update(
                 tag.clone(),
                 verbose,
                 noconfirm,
+                allow_dangerous,
             ) {
                 messages::failure(format!("Update failed: {}", e));
                 return;
@@ -112,6 +115,7 @@ pub fn handle_update(
                     tag.clone(),
                     verbose,
                     noconfirm,
+                    allow_dangerous,
                 ) {
                     messages::failure(format!("Failed to execute prerequisite '{}': {}", stage_name, e));
                     return;
@@ -131,6 +135,7 @@ pub fn handle_update(
             update_command,
             verbose,
             noconfirm,
+            allow_dangerous,
         ) {
             messages::failure(format!("Update failed: {}", e));
             return;
@@ -193,6 +198,7 @@ fn execute_prerequisite_stage(
     tag: Option<String>,
     verbose: bool,
     noconfirm: bool,
+    allow_dangerous: bool,
 ) -> Result<(), String> {
     match stage_name {
         "build" => {
@@ -211,6 +217,7 @@ fn execute_prerequisite_stage(
                 false, // force
                 verbose,
                 noconfirm,
+                allow_dangerous,
             );
             Ok(())
         }
@@ -225,6 +232,7 @@ fn execute_prerequisite_stage(
                 false, // system - let install determine from current state
                 verbose,
                 noconfirm,
+                allow_dangerous,
             );
             Ok(())
         }
@@ -235,6 +243,7 @@ fn execute_prerequisite_stage(
                 package,
                 verbose,
                 noconfirm,
+                allow_dangerous,
             );
             Ok(())
         }
@@ -253,6 +262,7 @@ fn execute_default_update(
     tag: Option<String>,
     verbose: bool,
     noconfirm: bool,
+    allow_dangerous: bool,
 ) -> Result<(), String> {
     // Step 1: Build new version
     messages::msg("Step 1: Building new version...");
@@ -270,6 +280,7 @@ fn execute_default_update(
         true, // force rebuild
         verbose,
         noconfirm,
+        allow_dangerous,
     );
 
     // Step 2: Uninstall current version
@@ -280,6 +291,7 @@ fn execute_default_update(
         package,
         verbose,
         noconfirm,
+        allow_dangerous,
     );
 
     // Step 3: Install new version
@@ -294,6 +306,7 @@ fn execute_default_update(
         false, // system - let install determine from current state
         verbose,
         noconfirm,
+        allow_dangerous,
     );
 
     Ok(())
@@ -307,9 +320,44 @@ fn execute_update_stage(
     update_command: &str,
     verbose: bool,
     noconfirm: bool,
+    allow_dangerous: bool,
 ) -> Result<(), String> {
     if verbose {
         logging::debug(format!("Update command: {}", update_command));
+    }
+
+    // Perform security analysis on the command
+    let security_analysis = security::analyze_command(update_command);
+    
+    match security_analysis.level {
+        security::SecurityLevel::Blocked => {
+            messages::failure("❌ ERROR: This command contains forbidden operations that will never be executed:");
+            for reason in &security_analysis.reasons {
+                messages::failure(format!("   - {}", reason));
+            }
+            messages::blank();
+            messages::failure("This package cannot be updated for safety reasons.");
+            return Err("Command blocked for security reasons".to_string());
+        }
+        security::SecurityLevel::Caution => {
+            if !allow_dangerous {
+                messages::caution("⚠️  WARNING: Some actions in this command have been identified as potentially dangerous.");
+                messages::caution("Dangerous patterns detected:");
+                for reason in &security_analysis.reasons {
+                    messages::caution(format!("   - {}", reason));
+                }
+                messages::blank();
+                messages::caution("Please carefully review the commands before execution:");
+                messages::blank();
+                for line in update_command.lines() {
+                    messages::info(format!("   {}", line));
+                }
+                messages::blank();
+            }
+        }
+        security::SecurityLevel::Safe => {
+            // No additional warnings needed
+        }
     }
 
     // Setup environment for update

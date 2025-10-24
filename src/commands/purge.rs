@@ -2,6 +2,7 @@ use super::handle_uninstall;
 use crate::config::Config;
 use crate::logging;
 use crate::messages;
+use crate::security;
 use crate::system::SystemInfo;
 use crate::utilities::{load_package, BuildEnvironment, GitRepo, Package, resolve_prerequisites};
 use std::fs;
@@ -12,6 +13,7 @@ pub fn handle_purge(
     package: &str,
     verbose: bool,
     noconfirm: bool,
+    allow_dangerous: bool,
 ) {
     // Purge may need privileges if package was installed system-wide
     // So we don't automatically drop privileges here
@@ -79,6 +81,7 @@ pub fn handle_purge(
                         stage_name,
                         verbose,
                         noconfirm,
+                        allow_dangerous,
                     ) {
                         messages::failure(format!("Failed to execute prerequisite '{}': {}", stage_name, e));
                         return;
@@ -100,6 +103,7 @@ pub fn handle_purge(
                 purge_command,
                 verbose,
                 noconfirm,
+                allow_dangerous,
             ) {
                 messages::failure(format!("Purge command failed: {}", e));
                 return;
@@ -107,12 +111,23 @@ pub fn handle_purge(
         }
     }
 
-    // Step 5: Remove sourcery-managed directories (source, artifacts, logs)
-    messages::msg("Removing sourcery data directories...");
-    
-    if let Err(e) = remove_package_directories(config, package, verbose, noconfirm) {
-        messages::failure(format!("Failed to remove directories: {}", e));
-        return;
+    // Step 3: Call uninstall if it exists
+    if package_def.uninstall.is_some() {
+        messages::msg("Uninstalling package...");
+        handle_uninstall(config, system_info, package, verbose, noconfirm, allow_dangerous);
+    }
+
+    // Step 4: Clean up source directory
+    messages::msg("Removing source directory...");
+    let source_dir = config.local_storage_path().join("source").join(package);
+    if source_dir.exists() {
+        if let Err(e) = fs::remove_dir_all(&source_dir) {
+            messages::failure(format!("Failed to remove source directory: {}", e));
+            return;
+        }
+        messages::msg(format!("  Source removed: {}", source_dir.display()));
+    } else {
+        messages::msg("  No source directory found");
     }
 
     messages::success(format!("Package '{}' purged successfully!", package));
@@ -167,6 +182,7 @@ fn execute_prerequisite_stage(
     stage_name: &str,
     verbose: bool,
     noconfirm: bool,
+    allow_dangerous: bool,
 ) -> Result<(), String> {
     match stage_name {
         "uninstall" => {
@@ -176,6 +192,7 @@ fn execute_prerequisite_stage(
                 package,
                 verbose,
                 noconfirm,
+                allow_dangerous,
             );
             Ok(())
         }
@@ -195,9 +212,44 @@ fn execute_purge_stage(
     purge_command: &str,
     verbose: bool,
     noconfirm: bool,
+    allow_dangerous: bool,
 ) -> Result<(), String> {
     if verbose {
         logging::debug(format!("Purge command: {}", purge_command));
+    }
+
+    // Perform security analysis on the command
+    let security_analysis = security::analyze_command(purge_command);
+    
+    match security_analysis.level {
+        security::SecurityLevel::Blocked => {
+            messages::failure("❌ ERROR: This command contains forbidden operations that will never be executed:");
+            for reason in &security_analysis.reasons {
+                messages::failure(format!("   - {}", reason));
+            }
+            messages::blank();
+            messages::failure("This package cannot be purged for safety reasons.");
+            return Err("Command blocked for security reasons".to_string());
+        }
+        security::SecurityLevel::Caution => {
+            if !allow_dangerous {
+                messages::caution("⚠️  WARNING: Some actions in this command have been identified as potentially dangerous.");
+                messages::caution("Dangerous patterns detected:");
+                for reason in &security_analysis.reasons {
+                    messages::caution(format!("   - {}", reason));
+                }
+                messages::blank();
+                messages::caution("Please carefully review the commands before execution:");
+                messages::blank();
+                for line in purge_command.lines() {
+                    messages::info(format!("   {}", line));
+                }
+                messages::blank();
+            }
+        }
+        security::SecurityLevel::Safe => {
+            // No additional warnings needed
+        }
     }
 
     messages::caution("About to execute package-defined purge command:");

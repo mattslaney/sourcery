@@ -6,6 +6,7 @@ mod commands;
 mod config;
 mod logging;
 mod messages;
+mod security;
 mod system;
 mod utilities;
 mod utils;
@@ -101,6 +102,7 @@ fn main() {
             force,
             verbose,
             noconfirm,
+            allow_dangerous,
         }) => {
             commands::handle_build(
                 &config,
@@ -114,6 +116,7 @@ fn main() {
                 force,
                 verbose,
                 noconfirm,
+                allow_dangerous,
             );
         }
         Some(Commands::Install {
@@ -124,6 +127,7 @@ fn main() {
             system,
             verbose,
             noconfirm,
+            allow_dangerous,
         }) => {
             commands::handle_install(
                 &config,
@@ -135,6 +139,7 @@ fn main() {
                 system,
                 verbose,
                 noconfirm,
+                allow_dangerous,
             );
         }
         Some(Commands::Update {
@@ -143,6 +148,7 @@ fn main() {
             tag,
             verbose,
             noconfirm,
+            allow_dangerous,
         }) => {
             commands::handle_update(
                 &config,
@@ -152,12 +158,14 @@ fn main() {
                 tag,
                 verbose,
                 noconfirm,
+                allow_dangerous,
             );
         }
         Some(Commands::Uninstall {
             package,
             verbose,
             noconfirm,
+            allow_dangerous,
         }) => {
             commands::handle_uninstall(
                 &config,
@@ -165,14 +173,16 @@ fn main() {
                 &package,
                 verbose,
                 noconfirm,
+                allow_dangerous,
             );
         }
         Some(Commands::Purge {
             package,
             verbose,
             noconfirm,
+            allow_dangerous,
         }) => {
-            commands::handle_purge(&config, &system_info, &package, verbose, noconfirm);
+            commands::handle_purge(&config, &system_info, &package, verbose, noconfirm, allow_dangerous);
         }
         None => {
             eprintln!("No command specified. Use --help for usage information.");

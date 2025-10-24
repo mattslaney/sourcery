@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::logging;
 use crate::messages;
+use crate::security;
 use crate::system::SystemInfo;
 use crate::utilities::{load_package, BuildEnvironment, GitRepo, Package};
 use nix::unistd::Uid;
@@ -12,6 +13,7 @@ pub fn handle_uninstall(
     package: &str,
     verbose: bool,
     noconfirm: bool,
+    allow_dangerous: bool,
 ) {
     messages::msg(format!("Uninstalling package: {}", package));
 
@@ -114,7 +116,7 @@ pub fn handle_uninstall(
     // Step 6: Execute uninstall command
     messages::msg("Executing uninstall stage...");
     
-    if let Err(e) = execute_uninstall_stage(&build_env, uninstall_stage, verbose, noconfirm) {
+    if let Err(e) = execute_uninstall_stage(&build_env, uninstall_stage, verbose, noconfirm, allow_dangerous) {
         messages::failure(format!("Uninstall failed: {}", e));
         return;
     }
@@ -189,6 +191,7 @@ fn execute_uninstall_stage(
     uninstall_stage: &crate::utilities::PackageStage,
     verbose: bool,
     noconfirm: bool,
+    allow_dangerous: bool,
 ) -> Result<(), String> {
     let uninstall_command = match &uninstall_stage.command {
         Some(cmd) => cmd,
@@ -199,6 +202,40 @@ fn execute_uninstall_stage(
 
     if verbose {
         logging::debug(format!("Uninstall command: {}", uninstall_command));
+    }
+
+    // Perform security analysis on the command
+    let security_analysis = security::analyze_command(uninstall_command);
+    
+    match security_analysis.level {
+        security::SecurityLevel::Blocked => {
+            messages::failure("❌ ERROR: This command contains forbidden operations that will never be executed:");
+            for reason in &security_analysis.reasons {
+                messages::failure(format!("   - {}", reason));
+            }
+            messages::blank();
+            messages::failure("This package cannot be uninstalled for safety reasons.");
+            return Err("Command blocked for security reasons".to_string());
+        }
+        security::SecurityLevel::Caution => {
+            if !allow_dangerous {
+                messages::caution("⚠️  WARNING: Some actions in this command have been identified as potentially dangerous.");
+                messages::caution("Dangerous patterns detected:");
+                for reason in &security_analysis.reasons {
+                    messages::caution(format!("   - {}", reason));
+                }
+                messages::blank();
+                messages::caution("Please carefully review the commands before execution:");
+                messages::blank();
+                for line in uninstall_command.lines() {
+                    messages::info(format!("   {}", line));
+                }
+                messages::blank();
+            }
+        }
+        security::SecurityLevel::Safe => {
+            // No additional warnings needed
+        }
     }
 
     // Prepare environment variables

@@ -2,6 +2,7 @@ use super::handle_build;
 use crate::config::Config;
 use crate::logging;
 use crate::messages;
+use crate::security;
 use crate::system::SystemInfo;
 use crate::utilities::{
     load_package, BuildEnvironment, GitRepo, Package, resolve_prerequisites,
@@ -21,6 +22,7 @@ pub fn handle_install(
     system: bool,
     verbose: bool,
     noconfirm: bool,
+    allow_dangerous: bool,
 ) {
     messages::msg(format!("Installing package: {}", package));
 
@@ -172,6 +174,7 @@ pub fn handle_install(
                             branch.clone(),
                             verbose,
                             noconfirm,
+                            allow_dangerous,
                         ) {
                             messages::failure(format!("Failed to execute build prerequisite: {}", e));
                             return;
@@ -244,7 +247,7 @@ pub fn handle_install(
     // Step 6: Execute install command
     messages::msg("Executing install stage...");
     
-    if let Err(e) = execute_install_stage(&build_env, install_stage, verbose, noconfirm) {
+    if let Err(e) = execute_install_stage(&build_env, install_stage, verbose, noconfirm, allow_dangerous) {
         messages::failure(format!("Install failed: {}", e));
         return;
     }
@@ -260,6 +263,7 @@ fn execute_build_prerequisite(
     branch: Option<String>,
     verbose: bool,
     noconfirm: bool,
+    allow_dangerous: bool,
 ) -> Result<(), String> {
     // Call the build command handler
     // Use default parameters: container build (from config), not local, not chroot, not forced
@@ -275,6 +279,7 @@ fn execute_build_prerequisite(
         false, // force
         verbose,
         noconfirm,
+        allow_dangerous,
     );
     
     Ok(())
@@ -385,6 +390,7 @@ fn execute_install_stage(
     install_stage: &crate::utilities::PackageStage,
     verbose: bool,
     noconfirm: bool,
+    allow_dangerous: bool,
 ) -> Result<(), String> {
     let install_command = match &install_stage.command {
         Some(cmd) => cmd,
@@ -395,6 +401,40 @@ fn execute_install_stage(
 
     if verbose {
         logging::debug(format!("Install command: {}", install_command));
+    }
+
+    // Perform security analysis on the command
+    let security_analysis = security::analyze_command(install_command);
+    
+    match security_analysis.level {
+        security::SecurityLevel::Blocked => {
+            messages::failure("❌ ERROR: This command contains forbidden operations that will never be executed:");
+            for reason in &security_analysis.reasons {
+                messages::failure(format!("   - {}", reason));
+            }
+            messages::blank();
+            messages::failure("This package cannot be installed for safety reasons.");
+            return Err("Command blocked for security reasons".to_string());
+        }
+        security::SecurityLevel::Caution => {
+            if !allow_dangerous {
+                messages::caution("⚠️  WARNING: Some actions in this command have been identified as potentially dangerous.");
+                messages::caution("Dangerous patterns detected:");
+                for reason in &security_analysis.reasons {
+                    messages::caution(format!("   - {}", reason));
+                }
+                messages::blank();
+                messages::caution("Please carefully review the commands before execution:");
+                messages::blank();
+                for line in install_command.lines() {
+                    messages::info(format!("   {}", line));
+                }
+                messages::blank();
+            }
+        }
+        security::SecurityLevel::Safe => {
+            // No additional warnings needed
+        }
     }
 
     // Prepare environment variables

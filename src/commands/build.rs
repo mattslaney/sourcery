@@ -3,8 +3,8 @@ use crate::logging;
 use crate::messages;
 use crate::system::SystemInfo;
 use crate::utilities::{
-    load_package, BuildEnvironment, ContainerRuntime, SourceryImageBuilder, GitRepo,
-    get_build_volume_mounts, format_env_for_container,
+    load_package, BuildEnvironment, ContainerRuntime, ContainerRuntimeType, 
+    SourceryImageBuilder, GitRepo, get_build_volume_mounts, format_env_for_container,
 };
 use std::fs;
 
@@ -322,17 +322,29 @@ set -e
         deps_install,
         build_command
     );
-
-    if verbose {
-        logging::debug(format!("Build script:\n{}", build_script));
-    }
-
     messages::msg("  Executing build command...");
 
-    // Show the command that will be executed
-    messages::info(format!("Container command: {} run {} ...", runtime.command(), image_tag));
+    // Show the container execution details
+    messages::info(format!("Container: {} run --rm {} {}", 
+        runtime.command(), 
+        image_tag,
+        if runtime.runtime_type() == ContainerRuntimeType::Podman {
+            "--userns=keep-id"
+        } else {
+            ""
+        }
+    ));
+    
+    // Show the build script that will be executed inside the container
+    messages::info("Commands to execute in container:");
+    for line in build_script.lines().skip(2) { // Skip shebang and set -e
+        if !line.is_empty() {
+            messages::info(format!("  {}", line));
+        }
+    }
+
     if verbose {
-        messages::info(format!("Build script:\n{}", build_script));
+        messages::info(format!("Full build script:\n{}", build_script));
     }
 
     // Ask for confirmation unless noconfirm is set

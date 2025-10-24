@@ -167,6 +167,38 @@ impl GitRepo {
         Ok(!output.stdout.is_empty())
     }
 
+    /// Reset the repository to a clean state
+    /// This performs a hard reset and removes all untracked files and directories
+    pub fn clean(&self) -> Result<(), String> {
+        // First, reset any changes to tracked files
+        let output = Command::new("git")
+            .current_dir(&self.repo_path)
+            .arg("reset")
+            .arg("--hard")
+            .output()
+            .map_err(|e| format!("Failed to execute git: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Failed to reset repository: {}", stderr));
+        }
+
+        // Then, remove all untracked files and directories (including ignored files)
+        let output = Command::new("git")
+            .current_dir(&self.repo_path)
+            .arg("clean")
+            .arg("-fdx")
+            .output()
+            .map_err(|e| format!("Failed to execute git: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Failed to clean repository: {}", stderr));
+        }
+
+        Ok(())
+    }
+
     /// Get the repository path
     pub fn path(&self) -> &Path {
         &self.repo_path
@@ -308,6 +340,84 @@ mod tests {
         let has_changes = repo.has_uncommitted_changes();
         assert!(has_changes.is_ok());
         assert!(has_changes.unwrap());
+    }
+
+    #[test]
+    fn test_git_clean() {
+        // Create a test git repository
+        let temp_dir = TempDir::new().unwrap();
+        let repo_path = temp_dir.path().join("test-repo");
+        fs::create_dir(&repo_path).unwrap();
+
+        // Initialize git repo
+        Command::new("git")
+            .current_dir(&repo_path)
+            .arg("init")
+            .output()
+            .unwrap();
+
+        // Configure git user for testing
+        Command::new("git")
+            .current_dir(&repo_path)
+            .args(&["config", "user.email", "test@example.com"])
+            .output()
+            .unwrap();
+
+        Command::new("git")
+            .current_dir(&repo_path)
+            .args(&["config", "user.name", "Test User"])
+            .output()
+            .unwrap();
+
+        // Create and commit a file
+        fs::write(repo_path.join("tracked.txt"), "original content").unwrap();
+        Command::new("git")
+            .current_dir(&repo_path)
+            .args(&["add", "."])
+            .output()
+            .unwrap();
+        Command::new("git")
+            .current_dir(&repo_path)
+            .args(&["commit", "-m", "Initial commit"])
+            .output()
+            .unwrap();
+
+        // Modify tracked file
+        fs::write(repo_path.join("tracked.txt"), "modified content").unwrap();
+
+        // Create untracked file (like a build artifact)
+        fs::write(repo_path.join("build_artifact.o"), "binary data").unwrap();
+
+        // Create untracked directory (like a build directory)
+        let build_dir = repo_path.join("build");
+        fs::create_dir(&build_dir).unwrap();
+        fs::write(build_dir.join("output.bin"), "output").unwrap();
+
+        // Verify files exist
+        assert!(repo_path.join("tracked.txt").exists());
+        assert!(repo_path.join("build_artifact.o").exists());
+        assert!(build_dir.exists());
+
+        // Verify repository has changes
+        let repo = GitRepo::new(&repo_path);
+        let has_changes = repo.has_uncommitted_changes().unwrap();
+        assert!(has_changes);
+
+        // Clean the repository
+        let result = repo.clean();
+        assert!(result.is_ok());
+
+        // Verify tracked file is restored
+        let content = fs::read_to_string(repo_path.join("tracked.txt")).unwrap();
+        assert_eq!(content, "original content");
+
+        // Verify untracked files are removed
+        assert!(!repo_path.join("build_artifact.o").exists());
+        assert!(!build_dir.exists());
+
+        // Verify no uncommitted changes remain
+        let has_changes = repo.has_uncommitted_changes().unwrap();
+        assert!(!has_changes);
     }
 }
 

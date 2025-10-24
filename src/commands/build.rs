@@ -197,6 +197,14 @@ fn setup_source_repository(
             logging::debug("Repository already exists, updating...");
         }
         let repo = GitRepo::new(dest_path);
+        
+        // Clean the repository to remove any build artifacts and uncommitted changes
+        if verbose {
+            logging::debug("Cleaning repository to pristine state...");
+        }
+        repo.clean()?;
+        
+        // Fetch latest changes
         repo.fetch()?;
         repo
     } else {

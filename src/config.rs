@@ -13,6 +13,8 @@ pub struct Config {
     pub install: InstallConfig,
     pub build: BuildConfig,
     pub repositories: HashMap<String, RepositoryInfo>,
+    #[serde(skip)]
+    pub config_path: Option<PathBuf>,
 }
 
 fn default_log_level() -> String {
@@ -77,8 +79,28 @@ impl RepositoryInfo {
     }
 
     /// Get the expanded path for path-based repositories
-    pub fn expanded_path(&self) -> Option<PathBuf> {
-        self.path.as_ref().map(|p| expand_tilde(p))
+    /// If the path is relative, it will be resolved relative to the config file's directory
+    /// If config_path is provided and the path is relative, resolve relative to config dir
+    pub fn expanded_path(&self, config_path: Option<&Path>) -> Option<PathBuf> {
+        self.path.as_ref().map(|p| {
+            let expanded = expand_tilde(p);
+            
+            // If the path is relative and we have a config path, make it relative to config dir
+            if expanded.is_relative() {
+                if let Some(cfg_path) = config_path {
+                    // Resolve the config path (handling symlinks)
+                    let real_config_path = fs::canonicalize(cfg_path)
+                        .unwrap_or_else(|_| cfg_path.to_path_buf());
+                    
+                    // Get the config directory
+                    if let Some(config_dir) = real_config_path.parent() {
+                        return config_dir.join(expanded);
+                    }
+                }
+            }
+            
+            expanded
+        })
     }
 }
 
@@ -114,7 +136,10 @@ impl Config {
     /// Load configuration from a specific path
     pub fn load_from_path(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
         let content = fs::read_to_string(path)?;
-        let config: Config = toml::from_str(&content)?;
+        let mut config: Config = toml::from_str(&content)?;
+        
+        // Store the config path (resolved, handling symlinks)
+        config.config_path = Some(path.to_path_buf());
         
         // Validate all repositories
         for (name, repo_info) in &config.repositories {
@@ -159,6 +184,12 @@ impl Config {
             .collect();
         repos.sort_by_key(|(_, info)| info.priority);
         repos
+    }
+
+    /// Get the expanded path for a path-based repository
+    /// Handles relative paths (relative to config file) and tilde expansion
+    pub fn get_repository_path(&self, repo_info: &RepositoryInfo) -> Option<PathBuf> {
+        repo_info.expanded_path(self.config_path.as_deref())
     }
 }
 
@@ -672,7 +703,7 @@ branch = "main"
     }
 
     #[test]
-    fn test_repository_expanded_path() {
+    fn test_repository_expanded_path_absolute() {
         let repo_info = RepositoryInfo {
             url: None,
             branch: None,
@@ -680,9 +711,51 @@ branch = "main"
             priority: 10,
         };
 
-        let expanded = repo_info.expanded_path().unwrap();
+        let expanded = repo_info.expanded_path(None).unwrap();
         // Should expand tilde
         assert!(!expanded.to_string_lossy().starts_with('~'));
         assert!(expanded.to_string_lossy().contains("local/repo"));
+    }
+
+    #[test]
+    fn test_repository_expanded_path_relative_to_config() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config").join("sourcery.toml");
+        fs::create_dir_all(config_path.parent().unwrap()).unwrap();
+        fs::File::create(&config_path).unwrap();
+
+        let repo_info = RepositoryInfo {
+            url: None,
+            branch: None,
+            path: Some("../repos/local-repo".to_string()),
+            priority: 10,
+        };
+
+        let expanded = repo_info.expanded_path(Some(&config_path)).unwrap();
+        
+        // Should resolve relative to config directory
+        // temp_dir/config/sourcery.toml + ../repos/local-repo = temp_dir/repos/local-repo
+        assert!(expanded.to_string_lossy().ends_with("repos/local-repo"));
+        assert!(expanded.to_string_lossy().contains(temp_dir.path().to_str().unwrap()));
+    }
+
+    #[test]
+    fn test_repository_expanded_path_absolute_ignores_config() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config").join("sourcery.toml");
+        fs::create_dir_all(config_path.parent().unwrap()).unwrap();
+        fs::File::create(&config_path).unwrap();
+
+        let repo_info = RepositoryInfo {
+            url: None,
+            branch: None,
+            path: Some("/absolute/path/to/repo".to_string()),
+            priority: 10,
+        };
+
+        let expanded = repo_info.expanded_path(Some(&config_path)).unwrap();
+        
+        // Absolute path should not be modified by config path
+        assert_eq!(expanded, PathBuf::from("/absolute/path/to/repo"));
     }
 }

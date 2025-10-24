@@ -23,7 +23,7 @@ pub fn handle_update_repo(config: &Config, _system_info: &SystemInfo) {
 
         if repo_info.is_path_based() {
             // Handle path-based repository
-            let source_path = repo_info.expanded_path().unwrap();
+            let source_path = config.get_repository_path(repo_info).unwrap();
             println!("  Path: {}", source_path.display());
 
             if !source_path.exists() {

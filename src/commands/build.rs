@@ -6,6 +6,7 @@ use crate::utilities::{
     load_package, BuildEnvironment, ContainerRuntime, ContainerRuntimeType, 
     SourceryImageBuilder, GitRepo, get_build_volume_mounts, format_env_for_container,
 };
+use crate::utils;
 use std::fs;
 
 #[allow(clippy::too_many_arguments)]
@@ -22,6 +23,9 @@ pub fn handle_build(
     verbose: bool,
     noconfirm: bool,
 ) {
+    // Build operations never need root - drop privileges if running with sudo
+    utils::ensure_not_root("build", verbose);
+    
     messages::msg(format!("Building package: {}", package));
     messages::msg(format!(
         "  Target system: {} {} ({})",

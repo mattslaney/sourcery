@@ -2,6 +2,7 @@ use crate::config::Config;
 use crate::messages;
 use crate::system::SystemInfo;
 use crate::utilities::{load_collection, load_package};
+use crate::utils;
 use crate::{green, style};
 use std::collections::HashMap;
 use std::fs;
@@ -23,6 +24,9 @@ pub fn handle_search(
     collection: bool,
     info: bool,
 ) {
+    // Search operations never need root - drop privileges if running with sudo
+    utils::ensure_not_root("search", false);
+    
     let search_type = if exact { "exact" } else { "fuzzy" };
     let target = if package {
         "package"

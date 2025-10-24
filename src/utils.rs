@@ -1,4 +1,104 @@
 use std::path::PathBuf;
+use std::process::Command;
+use nix::unistd::Uid;
+use crate::messages;
+use crate::logging;
+
+/// Information about the original user when running with sudo
+#[derive(Debug, Clone)]
+pub struct SudoContext {
+    pub uid: u32,
+    pub gid: u32,
+    pub user: String,
+    pub home: String,
+}
+
+impl SudoContext {
+    /// Detect if we're running as root via sudo and get the original user's context
+    pub fn detect() -> Option<Self> {
+        // Only relevant if we're currently running as root
+        if !Uid::effective().is_root() {
+            return None;
+        }
+
+        // Check if we have SUDO_UID and SUDO_GID environment variables
+        let sudo_uid = std::env::var("SUDO_UID").ok()?;
+        let sudo_gid = std::env::var("SUDO_GID").ok()?;
+        let sudo_user = std::env::var("SUDO_USER").ok()?;
+        
+        // Get the original user's HOME directory
+        // When sudo is used, it typically sets HOME to root's home
+        // We need to reconstruct the original user's home
+        let sudo_home = format!("/home/{}", sudo_user);
+
+        Some(SudoContext {
+            uid: sudo_uid.parse().ok()?,
+            gid: sudo_gid.parse().ok()?,
+            user: sudo_user,
+            home: sudo_home,
+        })
+    }
+
+    /// Re-execute the current command as the original user
+    /// This will exit the current process and never return
+    pub fn reexec_as_user(&self, verbose: bool) -> ! {
+        messages::info(format!(
+            "This operation doesn't require root privileges - executing as user '{}'",
+            self.user
+        ));
+        
+        if verbose {
+            logging::debug(format!(
+                "Using 'su' to drop privileges (uid: {} -> {})",
+                Uid::effective(), self.uid
+            ));
+        }
+
+        // Get current executable path
+        let exe_path = std::env::current_exe()
+            .expect("Failed to get current executable path");
+
+        // Collect all command-line arguments (skip argv[0] which is the program name)
+        let args: Vec<String> = std::env::args().skip(1).collect();
+
+        // Build the command string
+        let command_str = if args.is_empty() {
+            exe_path.display().to_string()
+        } else {
+            format!("{} {}", exe_path.display(), args.join(" "))
+        };
+
+        if verbose {
+            logging::debug(format!("Executing: su {} -c \"{}\"", self.user, command_str));
+        }
+
+        // Use 'su' to switch to the original user
+        // Note: We don't use 'su -' (login shell) because that would change the working directory
+        // and lose the current environment. We want to preserve the working directory and most env vars.
+        let mut cmd = Command::new("su");
+        cmd.arg(&self.user)
+            .arg("-c")
+            .arg(&command_str);
+
+        // Execute and exit with the same exit code
+        let status = cmd.status()
+            .expect("Failed to execute command as user");
+
+        std::process::exit(status.code().unwrap_or(1));
+    }
+}
+
+/// Check if running as root and drop privileges if not needed
+/// Call this at the start of any command that never needs root
+pub fn ensure_not_root(operation: &str, verbose: bool) {
+    if let Some(ctx) = SudoContext::detect() {
+        messages::caution(format!(
+            "Running '{}' with sudo is unnecessary and may cause issues - dropping to user '{}'",
+            operation, ctx.user
+        ));
+        ctx.reexec_as_user(verbose);
+    }
+}
 
 /// Expand tilde (~) in paths to the user's home directory
 pub fn expand_tilde(path: &str) -> PathBuf {

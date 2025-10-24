@@ -1,9 +1,13 @@
 use crate::config::Config;
 use crate::messages;
 use crate::system::SystemInfo;
+use crate::utils;
 use std::process::Command;
 
 pub fn handle_health(config: &Config, system_info: &SystemInfo) {
+    // Health checks never need root - drop privileges if running with sudo
+    utils::ensure_not_root("health", false);
+    
     messages::msg(style!("bold,cyan", "System Health Check"));
     messages::msg(style!("bold,cyan", "=================="));
     messages::blank();

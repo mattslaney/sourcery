@@ -23,6 +23,11 @@ pub fn failure(message: impl std::fmt::Display) {
     println!("{}", style!("red", "{}", message.to_string()));
 }
 
+/// Display a caution message to the user
+pub fn caution(message: impl std::fmt::Display) {
+    println!("{}", style!("yellow", "{}", message.to_string()));
+}
+
 /// Ask the user for confirmation (returns true if user confirms)
 pub fn confirm(message: impl std::fmt::Display) -> bool {
     use std::io::{self, Write};

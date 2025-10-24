@@ -2,10 +2,14 @@ use crate::config::Config;
 use crate::logging;
 use crate::messages;
 use crate::system::SystemInfo;
+use crate::utils;
 use std::fs;
 use std::io::{self, Write};
 
 pub fn handle_clean(config: &Config, _system_info: &SystemInfo, noconfirm: bool) {
+    // Clean operates on user directories - drop privileges if running with sudo
+    utils::ensure_not_root("clean", false);
+    
     messages::msg("Cleaning sources and artifacts...");
     
     let base_dir = config.local_storage_path();

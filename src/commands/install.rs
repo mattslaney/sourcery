@@ -6,7 +6,9 @@ use crate::system::SystemInfo;
 use crate::utilities::{
     load_package, BuildEnvironment, GitRepo, Package, resolve_prerequisites,
 };
+use crate::utils::SudoContext;
 use nix::unistd::Uid;
+use std::process::Command;
 
 #[allow(clippy::too_many_arguments)]
 pub fn handle_install(
@@ -127,22 +129,53 @@ pub fn handle_install(
                 logging::debug(format!("Resolved prerequisite chain: {:?}", stages_to_run));
             }
 
+            // Detect if we're running as root via sudo
+            let sudo_context = SudoContext::detect();
+            
             // Execute each prerequisite stage
             for stage_name in &stages_to_run {
                 messages::msg(format!("  Running prerequisite: {}", stage_name));
                 
-                // For "build" prerequisite, call the build command directly
+                // For "build" prerequisite, call the build command
+                // Build operations don't need root, so drop privileges if running as sudo
                 if stage_name == "build" {
-                    if let Err(e) = execute_build_prerequisite(
-                        config,
-                        system_info,
-                        package,
-                        branch.clone(),
-                        verbose,
-                        noconfirm,
-                    ) {
-                        messages::failure(format!("Failed to execute build prerequisite: {}", e));
-                        return;
+                    if let Some(ref ctx) = sudo_context {
+                        // Running as root via sudo - execute build as original user
+                        messages::info(format!(
+                            "Build doesn't require root privileges - executing as user '{}'",
+                            ctx.user
+                        ));
+                        
+                        if verbose {
+                            logging::debug(format!(
+                                "Using 'su' to drop privileges (uid: {} -> {})",
+                                Uid::effective(), ctx.uid
+                            ));
+                        }
+                        
+                        if let Err(e) = execute_build_as_user(
+                            ctx,
+                            package,
+                            branch.clone(),
+                            verbose,
+                            noconfirm,
+                        ) {
+                            messages::failure(format!("Failed to execute build prerequisite: {}", e));
+                            return;
+                        }
+                    } else {
+                        // Not running as root, execute normally
+                        if let Err(e) = execute_build_prerequisite(
+                            config,
+                            system_info,
+                            package,
+                            branch.clone(),
+                            verbose,
+                            noconfirm,
+                        ) {
+                            messages::failure(format!("Failed to execute build prerequisite: {}", e));
+                            return;
+                        }
                     }
                 } else {
                     // For other stages, we need to create a temporary build env
@@ -243,6 +276,64 @@ fn execute_build_prerequisite(
         verbose,
         noconfirm,
     );
+    
+    Ok(())
+}
+
+/// Execute the build prerequisite as the original user (when running via sudo)
+fn execute_build_as_user(
+    sudo_ctx: &SudoContext,
+    package: &str,
+    branch: Option<String>,
+    verbose: bool,
+    noconfirm: bool,
+) -> Result<(), String> {
+    // Get the path to the current executable
+    let exe_path = std::env::current_exe()
+        .map_err(|e| format!("Failed to get current executable path: {}", e))?;
+    
+    // Build the command string
+    let mut args = vec![
+        "build".to_string(),
+        package.to_string(),
+    ];
+    
+    if let Some(ref branch_name) = branch {
+        args.push("--branch".to_string());
+        args.push(branch_name.clone());
+    }
+    
+    if verbose {
+        args.push("--verbose".to_string());
+    }
+    
+    if noconfirm {
+        args.push("--noconfirm".to_string());
+    }
+    
+    // When running as root, we can use 'su' to switch to the user without a password
+    // Note: We don't use 'su -' (login shell) to preserve working directory and environment
+    let command_str = format!(
+        "{} {}",
+        exe_path.display(),
+        args.join(" ")
+    );
+    
+    let mut cmd = Command::new("su");
+    cmd.arg(&sudo_ctx.user)
+        .arg("-c")
+        .arg(&command_str);
+    
+    // Execute the command and inherit stdio so output is visible
+    let status = cmd.status()
+        .map_err(|e| format!("Failed to execute build command as user: {}", e))?;
+    
+    if !status.success() {
+        return Err(format!(
+            "Build command failed with exit code: {}",
+            status.code().unwrap_or(-1)
+        ));
+    }
     
     Ok(())
 }

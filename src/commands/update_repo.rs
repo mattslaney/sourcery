@@ -1,11 +1,15 @@
 use crate::config::Config;
 use crate::system::SystemInfo;
+use crate::utils;
 use std::fs;
 use std::os::unix::fs as unix_fs;
 use std::path::Path;
 use std::process::Command;
 
 pub fn handle_update_repo(config: &Config, _system_info: &SystemInfo) {
+    // Repository operations never need root - drop privileges if running with sudo
+    utils::ensure_not_root("update-repo", false);
+    
     println!("Updating package repositories...");
 
     // Get the repositories directory path

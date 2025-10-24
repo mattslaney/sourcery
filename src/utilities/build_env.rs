@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// Represents the build environment for a package
 #[derive(Debug, Clone)]
@@ -95,6 +95,14 @@ impl BuildEnvironment {
             "SCRY_DATADIR".to_string(),
             self.install_prefix
                 .join("share")
+                .to_string_lossy()
+                .to_string(),
+        );
+        env.insert(
+            "SCRY_MANDIR".to_string(),
+            self.install_prefix
+                .join("share")
+                .join("man")
                 .to_string_lossy()
                 .to_string(),
         );
@@ -235,6 +243,10 @@ mod tests {
         assert_eq!(
             vars.get("SCRY_BINDIR").unwrap(),
             &install_prefix.join("bin").to_string_lossy()
+        );
+        assert_eq!(
+            vars.get("SCRY_MANDIR").unwrap(),
+            &install_prefix.join("share").join("man").to_string_lossy()
         );
     }
 

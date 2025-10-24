@@ -484,6 +484,7 @@ fn build_local(
 }
 
 /// Copy artifacts from source directory to artifacts directory
+/// Preserves the full directory structure as specified in the artifacts list
 fn copy_artifacts(
     build_env: &BuildEnvironment,
     build_stage: &crate::utilities::PackageStage,
@@ -513,12 +514,18 @@ fn copy_artifacts(
             ));
         }
 
-        // Get the filename from the artifact path
-        let file_name = source_path
-            .file_name()
-            .ok_or_else(|| format!("Invalid artifact path: {}", artifact_path))?;
-        
-        let dest_path = build_env.artifacts_dir.join(file_name);
+        // Preserve the full path structure in the artifacts directory
+        let dest_path = build_env.artifacts_dir.join(artifact_path);
+
+        // Create parent directories if needed
+        if let Some(parent) = dest_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| {
+                format!(
+                    "Failed to create artifact directory '{}': {}",
+                    parent.display(), e
+                )
+            })?;
+        }
 
         if verbose {
             logging::debug(format!(
@@ -528,7 +535,7 @@ fn copy_artifacts(
             ));
         }
 
-        // Copy the file
+        // Copy the file or directory
         if source_path.is_file() {
             fs::copy(&source_path, &dest_path).map_err(|e| {
                 format!(
@@ -546,7 +553,7 @@ fn copy_artifacts(
             ));
         }
 
-        messages::msg(format!("  ✓ Copied {}", file_name.to_string_lossy()));
+        messages::msg(format!("  ✓ Copied {}", artifact_path));
     }
 
     Ok(())

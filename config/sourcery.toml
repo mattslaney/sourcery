@@ -1,0 +1,33 @@
+log_level = "trace"
+local_storage = '~/.local/share/sourcery'
+
+[install]
+user_path = '~/.local'
+system_path = '/usr/local'
+
+[build]
+default_environment = "container"
+
+# URL-based repositories (cloned via git)
+# The priority is used to give precedence to where packages are installed from.
+# the lower the priority the higher the precedence.
+# branch is the branch of the repository to use.
+[repositories.main]
+url = "http://github.com/mattslaney/sourcery-repository.git"
+branch = "main" 
+priority = 10
+
+[repositories.dev]
+url = "http://github.com/mattslaney/sourcery-repository.git"
+branch = "dev"
+priority = 20
+
+# Path-based repositories (local filesystem directories)
+# Useful for development or offline repositories
+# Paths can be:
+#   - Absolute: /home/user/my-repo
+#   - Tilde expansion: ~/Dev/my-repo
+#   - Relative to config file: ../../sourcery-repository
+[repositories.local]
+path = "../../sourcery-repository"
+priority = 5
